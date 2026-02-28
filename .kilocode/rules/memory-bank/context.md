@@ -86,3 +86,4 @@ The application is fully functional. Next steps depend on user requirements:
 | 2026-02-28 | Added YouTube stream monitor application |
 | 2026-02-28 | Increased stream limit from 10 to 12 |
 | 2026-02-28 | Made setup page scrollable for long content |
+| 2026-02-28 | Fixed scrolling by removing flexbox centering that blocked overflow |
