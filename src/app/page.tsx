@@ -90,7 +90,7 @@ export default function Home() {
           <label className="block text-sm font-medium text-neutral-300 mb-3">
             Number of Streams
           </label>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex gap-2">
             {Array.from({ length: 12 }, (_, i) => i + 1).map((num) => (
               <button
                 key={num}
