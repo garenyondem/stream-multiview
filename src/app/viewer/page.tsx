@@ -59,6 +59,8 @@ export default function Viewer() {
   // Drag state
   const [isDragging, setIsDragging] = useState(false);
   const [dragType, setDragType] = useState<"col" | "row" | null>(null);
+  const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
+  const [dividerPosition, setDividerPosition] = useState<number | null>(null);
   const dragInfo = useRef<{
     type: "col" | "row";
     index: number;
@@ -116,6 +118,11 @@ export default function Viewer() {
     const rect = gridRef.current.getBoundingClientRect();
     const totalWidth = rect.width;
 
+    // Calculate initial divider position as percentage
+    const cumulativeFraction = effectiveColSizes.slice(0, index + 1).reduce((a, b) => a + b, 0);
+    const totalFraction = effectiveColSizes.reduce((a, b) => a + b, 0);
+    const initialPercent = (cumulativeFraction / totalFraction) * 100;
+
     dragInfo.current = {
       type: "col",
       index,
@@ -125,6 +132,8 @@ export default function Viewer() {
     };
     currentSizes.current = [...effectiveColSizes];
 
+    setDraggingIndex(index);
+    setDividerPosition(initialPercent);
     setDragType("col");
     setIsDragging(true);
   }, [effectiveColSizes]);
@@ -137,6 +146,11 @@ export default function Viewer() {
     const rect = gridRef.current.getBoundingClientRect();
     const totalHeight = rect.height;
 
+    // Calculate initial divider position as percentage
+    const cumulativeFraction = effectiveRowSizes.slice(0, index + 1).reduce((a, b) => a + b, 0);
+    const totalFraction = effectiveRowSizes.reduce((a, b) => a + b, 0);
+    const initialPercent = (cumulativeFraction / totalFraction) * 100;
+
     dragInfo.current = {
       type: "row",
       index,
@@ -146,6 +160,8 @@ export default function Viewer() {
     };
     currentSizes.current = [...effectiveRowSizes];
 
+    setDraggingIndex(index);
+    setDividerPosition(initialPercent);
     setDragType("row");
     setIsDragging(true);
   }, [effectiveRowSizes]);
@@ -155,7 +171,7 @@ export default function Viewer() {
     if (!isDragging) return;
 
     const handleMouseMove = (e: MouseEvent) => {
-      if (!dragInfo.current) return;
+      if (!dragInfo.current || !gridRef.current) return;
       
       // Cancel any pending animation frame
       if (rafId.current) {
@@ -164,9 +180,10 @@ export default function Viewer() {
 
       // Schedule update for next frame
       rafId.current = requestAnimationFrame(() => {
-        if (!dragInfo.current) return;
+        if (!dragInfo.current || !gridRef.current) return;
         
         const { type, index, startPos, startSizes, totalSize } = dragInfo.current;
+        const rect = gridRef.current.getBoundingClientRect();
 
         const delta = type === "col" ? e.clientX - startPos : e.clientY - startPos;
         const deltaFraction = delta / (totalSize / startSizes.length);
@@ -194,6 +211,17 @@ export default function Viewer() {
 
         currentSizes.current = newSizes;
         updateGridStyles(newSizes, type);
+
+        // Update divider position to follow mouse (constrained to grid bounds)
+        if (type === "col") {
+          const mouseX = e.clientX - rect.left;
+          const percent = (mouseX / rect.width) * 100;
+          setDividerPosition(Math.max(5, Math.min(95, percent)));
+        } else {
+          const mouseY = e.clientY - rect.top;
+          const percent = (mouseY / rect.height) * 100;
+          setDividerPosition(Math.max(5, Math.min(95, percent)));
+        }
       });
     };
 
@@ -215,6 +243,8 @@ export default function Viewer() {
 
       setIsDragging(false);
       setDragType(null);
+      setDraggingIndex(null);
+      setDividerPosition(null);
       dragInfo.current = null;
     };
 
@@ -292,10 +322,15 @@ export default function Viewer() {
         {cols > 1 && (
           <div className="absolute inset-0 pointer-events-none z-20">
             {Array.from({ length: cols - 1 }, (_, i) => {
-              // Calculate position based on cumulative fractions
-              const cumulativeFraction = effectiveColSizes.slice(0, i + 1).reduce((a, b) => a + b, 0);
-              const totalFraction = effectiveColSizes.reduce((a, b) => a + b, 0);
-              const leftPercent = (cumulativeFraction / totalFraction) * 100;
+              // During drag, use the tracked divider position for the active divider
+              const isDraggingThis = isDragging && dragType === "col" && draggingIndex === i;
+              const leftPercent = isDraggingThis && dividerPosition !== null
+                ? dividerPosition
+                : (() => {
+                    const cumulativeFraction = effectiveColSizes.slice(0, i + 1).reduce((a, b) => a + b, 0);
+                    const totalFraction = effectiveColSizes.reduce((a, b) => a + b, 0);
+                    return (cumulativeFraction / totalFraction) * 100;
+                  })();
               
               return (
                 <div
@@ -305,7 +340,11 @@ export default function Viewer() {
                   onMouseDown={(e) => handleColResizeStart(i, e)}
                   title="Drag to resize"
                 >
-                  <div className="absolute inset-y-4 left-1/2 -translate-x-1/2 w-1.5 bg-neutral-600/40 group-hover:bg-red-500/70 group-active:bg-red-500 rounded-full transition-colors" />
+                  <div className={`absolute inset-y-4 left-1/2 -translate-x-1/2 w-1.5 rounded-full transition-colors ${
+                    isDraggingThis
+                      ? 'bg-red-500'
+                      : 'bg-neutral-600/40 group-hover:bg-red-500/70'
+                  }`} />
                 </div>
               );
             })}
@@ -316,9 +355,15 @@ export default function Viewer() {
         {rows > 1 && (
           <div className="absolute inset-0 pointer-events-none z-20">
             {Array.from({ length: rows - 1 }, (_, i) => {
-              const cumulativeFraction = effectiveRowSizes.slice(0, i + 1).reduce((a, b) => a + b, 0);
-              const totalFraction = effectiveRowSizes.reduce((a, b) => a + b, 0);
-              const topPercent = (cumulativeFraction / totalFraction) * 100;
+              // During drag, use the tracked divider position for the active divider
+              const isDraggingThis = isDragging && dragType === "row" && draggingIndex === i;
+              const topPercent = isDraggingThis && dividerPosition !== null
+                ? dividerPosition
+                : (() => {
+                    const cumulativeFraction = effectiveRowSizes.slice(0, i + 1).reduce((a, b) => a + b, 0);
+                    const totalFraction = effectiveRowSizes.reduce((a, b) => a + b, 0);
+                    return (cumulativeFraction / totalFraction) * 100;
+                  })();
               
               return (
                 <div
@@ -328,7 +373,11 @@ export default function Viewer() {
                   onMouseDown={(e) => handleRowResizeStart(i, e)}
                   title="Drag to resize"
                 >
-                  <div className="absolute inset-x-4 top-1/2 -translate-y-1/2 h-1.5 bg-neutral-600/40 group-hover:bg-red-500/70 group-active:bg-red-500 rounded-full transition-colors" />
+                  <div className={`absolute inset-x-4 top-1/2 -translate-y-1/2 h-1.5 rounded-full transition-colors ${
+                    isDraggingThis
+                      ? 'bg-red-500'
+                      : 'bg-neutral-600/40 group-hover:bg-red-500/70'
+                  }`} />
                 </div>
               );
             })}
