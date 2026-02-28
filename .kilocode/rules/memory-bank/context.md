@@ -49,6 +49,7 @@ A live stream monitoring application that allows users to watch up to 12 live st
   - 7-9 streams: 3×3 grid
   - 10+ streams: 4×3 grid
 - **Draggable resize handles** - drag grid dividers to resize stream panels
+- **Refresh button** - reload all streams without changing layout or order
   - **60fps smooth performance** - uses direct DOM manipulation, no React re-renders during drag
   - Handles follow mouse cursor during drag for smooth visual feedback
   - Minimum 10% size constraint per panel
@@ -58,7 +59,7 @@ A live stream monitoring application that allows users to watch up to 12 live st
 - Minimal header/footer to maximize stream area
 - Each stream in its own panel with label
 - Live indicator (pulsing red dot)
-- "Edit", "Clear", and "Reset Layout" buttons in compact header
+- "Edit", "Refresh", "Clear", and "Reset Layout" buttons in compact header
 
 ### State Management
 - React Context for soft persistence
@@ -96,5 +97,6 @@ The application is fully functional. Next steps depend on user requirements:
 | 2026-02-28 | Fixed scrolling by removing flexbox centering that blocked overflow |
 | 2026-02-28 | Added draggable grid resize handles for custom stream panel sizes |
 | 2026-02-28 | Made resize dividers thicker and easier to grab |
+| 2026-02-28 | Added refresh button to reload all streams |
 | 2026-02-28 | Divider now follows mouse cursor exactly during drag operation |
 | 2026-02-28 | Refactored resize logic for 60fps performance - pure DOM manipulation, no React re-renders during drag |
