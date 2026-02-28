@@ -300,12 +300,12 @@ export default function Viewer() {
               return (
                 <div
                   key={`v-${i}`}
-                  className="absolute top-0 bottom-0 w-4 -ml-2 cursor-col-resize pointer-events-auto group"
+                  className="absolute top-0 bottom-0 w-6 -ml-3 cursor-col-resize pointer-events-auto group z-30"
                   style={{ left: `${leftPercent}%` }}
                   onMouseDown={(e) => handleColResizeStart(i, e)}
                   title="Drag to resize"
                 >
-                  <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-1 bg-transparent group-hover:bg-red-500/50 transition-colors" />
+                  <div className="absolute inset-y-4 left-1/2 -translate-x-1/2 w-1.5 bg-neutral-600/40 group-hover:bg-red-500/70 group-active:bg-red-500 rounded-full transition-colors" />
                 </div>
               );
             })}
@@ -323,12 +323,12 @@ export default function Viewer() {
               return (
                 <div
                   key={`h-${i}`}
-                  className="absolute left-0 right-0 h-4 -mt-2 cursor-row-resize pointer-events-auto group"
+                  className="absolute left-0 right-0 h-6 -mt-3 cursor-row-resize pointer-events-auto group z-30"
                   style={{ top: `${topPercent}%` }}
                   onMouseDown={(e) => handleRowResizeStart(i, e)}
                   title="Drag to resize"
                 >
-                  <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-1 bg-transparent group-hover:bg-red-500/50 transition-colors" />
+                  <div className="absolute inset-x-4 top-1/2 -translate-y-1/2 h-1.5 bg-neutral-600/40 group-hover:bg-red-500/70 group-active:bg-red-500 rounded-full transition-colors" />
                 </div>
               );
             })}
