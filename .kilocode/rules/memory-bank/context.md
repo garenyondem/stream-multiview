@@ -40,13 +40,18 @@ A YouTube live stream monitoring application that allows users to watch up to 10
 - "Start Watching Streams" button
 
 ### Viewer Page (`/viewer`)
-- Dynamic grid layout based on stream count
-- Security camera-style interface
+- **Full-screen layout** - uses entire viewport (100vh × 100vw)
+- Dynamic grid layout based on stream count:
+  - 1 stream: 1×1 (full screen)
+  - 2 streams: 2×1 (horizontal split)
+  - 3-4 streams: 2×2 grid
+  - 5-6 streams: 3×2 grid
+  - 7-9 streams: 3×3 grid
+  - 10+ streams: 4×3 grid
+- Minimal header/footer to maximize stream area
 - Each stream in its own panel with label
 - Live indicator (pulsing red dot)
-- "Edit Streams" button (preserves URLs)
-- "Clear All" button (clears session)
-- Responsive grid (1×1, 2×1, 2×2, 3×2, 3×3, 4×3 layouts)
+- "Edit" and "Clear" buttons in compact header
 
 ### State Management
 - React Context for soft persistence
