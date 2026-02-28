@@ -74,8 +74,8 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen bg-neutral-950 flex items-center justify-center p-4">
-      <div className="w-full max-w-2xl bg-neutral-900 rounded-2xl border border-neutral-800 p-8 shadow-2xl">
+    <main className="min-h-screen bg-neutral-950 flex justify-center p-4 py-8 overflow-y-auto">
+      <div className="w-full max-w-2xl bg-neutral-900 rounded-2xl border border-neutral-800 p-8 shadow-2xl my-auto">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-white mb-2">
             YouTube Stream Monitor
