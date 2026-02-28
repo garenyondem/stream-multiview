@@ -84,7 +84,7 @@ export default function Viewer() {
       {/* Minimal Header */}
       <header className="bg-neutral-900/90 border-b border-neutral-800 px-4 py-2 flex items-center justify-between shrink-0 z-10">
         <div className="flex items-center gap-3">
-          <h1 className="text-sm font-semibold text-white">Stream Monitor</h1>
+          <h1 className="text-sm font-semibold text-white">Stream MultiView</h1>
           <span className="text-xs text-neutral-500">
             {activeCount} stream{activeCount !== 1 ? "s" : ""}
           </span>

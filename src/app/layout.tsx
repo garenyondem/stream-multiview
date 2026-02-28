@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "YouTube Stream Monitor",
-  description: "Watch up to 10 YouTube live streams simultaneously",
+  title: "Stream MultiView",
+  description: "Watch up to 12 live streams simultaneously",
 };
 
 export default function RootLayout({

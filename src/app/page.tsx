@@ -78,7 +78,7 @@ export default function Home() {
       <div className="w-full max-w-2xl mx-auto bg-neutral-900 rounded-2xl border border-neutral-800 p-8 shadow-2xl">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-white mb-2">
-            YouTube Stream Monitor
+            Stream MultiView
           </h1>
           <p className="text-neutral-400">
             Watch up to 12 live streams simultaneously

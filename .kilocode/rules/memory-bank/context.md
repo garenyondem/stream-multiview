@@ -1,10 +1,10 @@
-# Active Context: YouTube Stream Monitor
+# Active Context: Stream MultiView
 
 ## Current State
 
 **Application Status**: ✅ Ready for development
 
-A YouTube live stream monitoring application that allows users to watch up to 10 live streams simultaneously in a security camera-style interface.
+A live stream monitoring application that allows users to watch up to 12 live streams simultaneously in a security camera-style interface.
 
 ## Recently Completed
 
