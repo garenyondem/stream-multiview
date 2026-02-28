@@ -43,7 +43,6 @@ export default function Viewer() {
   const { cols, rows } = getGridDimensions(activeCount);
 
   // State for custom column and row sizes (in fractions)
-  // We store the sizes independently and pad with 1s when needed
   const [colSizes, setColSizes] = useState<number[]>([]);
   const [rowSizes, setRowSizes] = useState<number[]>([]);
 
@@ -56,20 +55,19 @@ export default function Viewer() {
     return rowSizes.length >= rows ? rowSizes.slice(0, rows) : [...rowSizes, ...Array(rows - rowSizes.length).fill(1)];
   }, [rowSizes, rows]);
 
-  // Drag state
+  // Drag state - minimal React state, mostly refs for performance
   const [isDragging, setIsDragging] = useState(false);
-  const [dragType, setDragType] = useState<"col" | "row" | null>(null);
-  const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
-  const [dividerPosition, setDividerPosition] = useState<number | null>(null);
   const dragInfo = useRef<{
     type: "col" | "row";
     index: number;
-    startPos: number;
     startSizes: number[];
-    totalSize: number;
+    gridRect: DOMRect;
+    startClientPos: number;
   } | null>(null);
-  const rafId = useRef<number | null>(null);
-  const currentSizes = useRef<number[]>([]);
+  
+  // Refs to DOM elements for direct manipulation
+  const colHandleRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const rowHandleRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   const extractVideoId = (url: string): string | null => {
     const patterns = [
@@ -99,6 +97,38 @@ export default function Viewer() {
     router.push("/");
   };
 
+  // Calculate divider position as percentage
+  const getDividerPosition = useCallback((sizes: number[], index: number): number => {
+    const cumulativeFraction = sizes.slice(0, index + 1).reduce((a, b) => a + b, 0);
+    const totalFraction = sizes.reduce((a, b) => a + b, 0);
+    return (cumulativeFraction / totalFraction) * 100;
+  }, []);
+
+  // Update a divider's visual position directly via DOM
+  const updateDividerPosition = useCallback((type: "col" | "row", index: number, percent: number) => {
+    const refs = type === "col" ? colHandleRefs : rowHandleRefs;
+    const handle = refs.current[index];
+    if (handle) {
+      if (type === "col") {
+        handle.style.left = `${percent}%`;
+      } else {
+        handle.style.top = `${percent}%`;
+      }
+    }
+  }, []);
+
+  // Update all divider positions based on current sizes
+  const updateAllDividerPositions = useCallback(() => {
+    for (let i = 0; i < cols - 1; i++) {
+      const pos = getDividerPosition(effectiveColSizes, i);
+      updateDividerPosition("col", i, pos);
+    }
+    for (let i = 0; i < rows - 1; i++) {
+      const pos = getDividerPosition(effectiveRowSizes, i);
+      updateDividerPosition("row", i, pos);
+    }
+  }, [cols, rows, effectiveColSizes, effectiveRowSizes, getDividerPosition, updateDividerPosition]);
+
   // Update grid styles directly on DOM for smooth resizing
   const updateGridStyles = useCallback((sizes: number[], type: "col" | "row") => {
     if (!gridRef.current) return;
@@ -110,143 +140,119 @@ export default function Viewer() {
     }
   }, []);
 
-  // Handle column resize start
-  const handleColResizeStart = useCallback((index: number, e: React.MouseEvent) => {
+  // Handle resize start
+  const handleResizeStart = useCallback((type: "col" | "row", index: number, e: React.MouseEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     if (!gridRef.current) return;
 
     const rect = gridRef.current.getBoundingClientRect();
-    const totalWidth = rect.width;
-
-    // Calculate initial divider position as percentage
-    const cumulativeFraction = effectiveColSizes.slice(0, index + 1).reduce((a, b) => a + b, 0);
-    const totalFraction = effectiveColSizes.reduce((a, b) => a + b, 0);
-    const initialPercent = (cumulativeFraction / totalFraction) * 100;
+    const sizes = type === "col" ? effectiveColSizes : effectiveRowSizes;
+    const clientPos = type === "col" ? e.clientX : e.clientY;
 
     dragInfo.current = {
-      type: "col",
+      type,
       index,
-      startPos: e.clientX,
-      startSizes: [...effectiveColSizes],
-      totalSize: totalWidth,
+      startSizes: [...sizes],
+      gridRect: rect,
+      startClientPos: clientPos,
     };
-    currentSizes.current = [...effectiveColSizes];
 
-    setDraggingIndex(index);
-    setDividerPosition(initialPercent);
-    setDragType("col");
     setIsDragging(true);
-  }, [effectiveColSizes]);
 
-  // Handle row resize start
-  const handleRowResizeStart = useCallback((index: number, e: React.MouseEvent) => {
-    e.preventDefault();
-    if (!gridRef.current) return;
+    // Highlight the active divider
+    const refs = type === "col" ? colHandleRefs : rowHandleRefs;
+    const handle = refs.current[index];
+    if (handle) {
+      const line = handle.querySelector(".divider-line") as HTMLElement;
+      if (line) {
+        line.classList.add("bg-red-500");
+        line.classList.remove("bg-neutral-600/40", "group-hover:bg-red-500/70");
+      }
+    }
+  }, [effectiveColSizes, effectiveRowSizes]);
 
-    const rect = gridRef.current.getBoundingClientRect();
-    const totalHeight = rect.height;
+  // Mouse move handler - uses refs only, no React state
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    if (!dragInfo.current || !gridRef.current) return;
+    
+    const { type, index, startSizes, gridRect, startClientPos } = dragInfo.current;
+    const clientPos = type === "col" ? e.clientX : e.clientY;
+    const totalSize = type === "col" ? gridRect.width : gridRect.height;
+    
+    const delta = clientPos - startClientPos;
+    const deltaFraction = delta / (totalSize / startSizes.length);
 
-    // Calculate initial divider position as percentage
-    const cumulativeFraction = effectiveRowSizes.slice(0, index + 1).reduce((a, b) => a + b, 0);
-    const totalFraction = effectiveRowSizes.reduce((a, b) => a + b, 0);
-    const initialPercent = (cumulativeFraction / totalFraction) * 100;
+    const newSizes = [...startSizes];
+    const currentSize = startSizes[index];
+    const nextSize = startSizes[index + 1];
 
-    dragInfo.current = {
-      type: "row",
-      index,
-      startPos: e.clientY,
-      startSizes: [...effectiveRowSizes],
-      totalSize: totalHeight,
-    };
-    currentSizes.current = [...effectiveRowSizes];
+    // Calculate new sizes with constraints (min 10% each)
+    let newCurrent = currentSize + deltaFraction;
+    let newNext = nextSize - deltaFraction;
 
-    setDraggingIndex(index);
-    setDividerPosition(initialPercent);
-    setDragType("row");
-    setIsDragging(true);
-  }, [effectiveRowSizes]);
+    const minSize = 0.1 * startSizes.length;
+    if (newCurrent < minSize) {
+      newNext -= minSize - newCurrent;
+      newCurrent = minSize;
+    }
+    if (newNext < minSize) {
+      newCurrent -= minSize - newNext;
+      newNext = minSize;
+    }
 
-  // Handle mouse move during drag
+    newSizes[index] = newCurrent;
+    newSizes[index + 1] = newNext;
+
+    // Apply immediately to DOM
+    updateGridStyles(newSizes, type);
+
+    // Update divider visual position
+    const dividerPos = getDividerPosition(newSizes, index);
+    updateDividerPosition(type, index, dividerPos);
+  }, [updateGridStyles, getDividerPosition, updateDividerPosition]);
+
+  // Mouse up handler - saves state once at the end
+  const handleMouseUp = useCallback(() => {
+    if (!dragInfo.current) return;
+
+    const { type, index } = dragInfo.current;
+    const sizes = type === "col" ? effectiveColSizes : effectiveRowSizes;
+
+    // Get current sizes from grid style
+    if (gridRef.current) {
+      const template = type === "col" 
+        ? gridRef.current.style.gridTemplateColumns 
+        : gridRef.current.style.gridTemplateRows;
+      
+      if (template) {
+        const currentSizes = template.split(" ").map(s => parseFloat(s));
+        if (type === "col") {
+          setColSizes(currentSizes);
+        } else {
+          setRowSizes(currentSizes);
+        }
+      }
+    }
+
+    // Remove highlight from divider
+    const refs = type === "col" ? colHandleRefs : rowHandleRefs;
+    const handle = refs.current[index];
+    if (handle) {
+      const line = handle.querySelector(".divider-line") as HTMLElement;
+      if (line) {
+        line.classList.remove("bg-red-500");
+        line.classList.add("bg-neutral-600/40", "group-hover:bg-red-500/70");
+      }
+    }
+
+    dragInfo.current = null;
+    setIsDragging(false);
+  }, [effectiveColSizes, effectiveRowSizes]);
+
+  // Setup global mouse events
   useEffect(() => {
     if (!isDragging) return;
-
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!dragInfo.current || !gridRef.current) return;
-      
-      // Cancel any pending animation frame
-      if (rafId.current) {
-        cancelAnimationFrame(rafId.current);
-      }
-
-      // Schedule update for next frame
-      rafId.current = requestAnimationFrame(() => {
-        if (!dragInfo.current || !gridRef.current) return;
-        
-        const { type, index, startPos, startSizes, totalSize } = dragInfo.current;
-        const rect = gridRef.current.getBoundingClientRect();
-
-        const delta = type === "col" ? e.clientX - startPos : e.clientY - startPos;
-        const deltaFraction = delta / (totalSize / startSizes.length);
-
-        const newSizes = [...startSizes];
-        const currentSize = startSizes[index];
-        const nextSize = startSizes[index + 1];
-
-        // Calculate new sizes with constraints (min 10% each)
-        let newCurrent = currentSize + deltaFraction;
-        let newNext = nextSize - deltaFraction;
-
-        const minSize = 0.1 * startSizes.length;
-        if (newCurrent < minSize) {
-          newNext -= minSize - newCurrent;
-          newCurrent = minSize;
-        }
-        if (newNext < minSize) {
-          newCurrent -= minSize - newNext;
-          newNext = minSize;
-        }
-
-        newSizes[index] = newCurrent;
-        newSizes[index + 1] = newNext;
-
-        currentSizes.current = newSizes;
-        updateGridStyles(newSizes, type);
-
-        // Update divider position to follow mouse (constrained to grid bounds)
-        if (type === "col") {
-          const mouseX = e.clientX - rect.left;
-          const percent = (mouseX / rect.width) * 100;
-          setDividerPosition(Math.max(5, Math.min(95, percent)));
-        } else {
-          const mouseY = e.clientY - rect.top;
-          const percent = (mouseY / rect.height) * 100;
-          setDividerPosition(Math.max(5, Math.min(95, percent)));
-        }
-      });
-    };
-
-    const handleMouseUp = () => {
-      // Cancel any pending animation frame
-      if (rafId.current) {
-        cancelAnimationFrame(rafId.current);
-        rafId.current = null;
-      }
-
-      // Save final sizes to state
-      if (dragInfo.current) {
-        if (dragInfo.current.type === "col") {
-          setColSizes(currentSizes.current);
-        } else {
-          setRowSizes(currentSizes.current);
-        }
-      }
-
-      setIsDragging(false);
-      setDragType(null);
-      setDraggingIndex(null);
-      setDividerPosition(null);
-      dragInfo.current = null;
-    };
 
     document.addEventListener("mousemove", handleMouseMove, { passive: true });
     document.addEventListener("mouseup", handleMouseUp);
@@ -254,11 +260,8 @@ export default function Viewer() {
     return () => {
       document.removeEventListener("mousemove", handleMouseMove);
       document.removeEventListener("mouseup", handleMouseUp);
-      if (rafId.current) {
-        cancelAnimationFrame(rafId.current);
-      }
     };
-  }, [isDragging, updateGridStyles]);
+  }, [isDragging, handleMouseMove, handleMouseUp]);
 
   // Reset sizes to equal distribution
   const resetSizes = () => {
@@ -322,29 +325,18 @@ export default function Viewer() {
         {cols > 1 && (
           <div className="absolute inset-0 pointer-events-none z-20">
             {Array.from({ length: cols - 1 }, (_, i) => {
-              // During drag, use the tracked divider position for the active divider
-              const isDraggingThis = isDragging && dragType === "col" && draggingIndex === i;
-              const leftPercent = isDraggingThis && dividerPosition !== null
-                ? dividerPosition
-                : (() => {
-                    const cumulativeFraction = effectiveColSizes.slice(0, i + 1).reduce((a, b) => a + b, 0);
-                    const totalFraction = effectiveColSizes.reduce((a, b) => a + b, 0);
-                    return (cumulativeFraction / totalFraction) * 100;
-                  })();
+              const leftPercent = getDividerPosition(effectiveColSizes, i);
               
               return (
                 <div
                   key={`v-${i}`}
-                  className="absolute top-0 bottom-0 w-6 -ml-3 cursor-col-resize pointer-events-auto group z-30"
+                  ref={el => { colHandleRefs.current[i] = el; }}
+                  className="absolute top-0 bottom-0 w-6 -ml-3 cursor-col-resize pointer-events-auto group z-30 transition-none"
                   style={{ left: `${leftPercent}%` }}
-                  onMouseDown={(e) => handleColResizeStart(i, e)}
+                  onMouseDown={(e) => handleResizeStart("col", i, e)}
                   title="Drag to resize"
                 >
-                  <div className={`absolute inset-y-4 left-1/2 -translate-x-1/2 w-1.5 rounded-full transition-colors ${
-                    isDraggingThis
-                      ? 'bg-red-500'
-                      : 'bg-neutral-600/40 group-hover:bg-red-500/70'
-                  }`} />
+                  <div className="divider-line absolute inset-y-4 left-1/2 -translate-x-1/2 w-1.5 rounded-full bg-neutral-600/40 group-hover:bg-red-500/70 transition-colors" />
                 </div>
               );
             })}
@@ -355,29 +347,18 @@ export default function Viewer() {
         {rows > 1 && (
           <div className="absolute inset-0 pointer-events-none z-20">
             {Array.from({ length: rows - 1 }, (_, i) => {
-              // During drag, use the tracked divider position for the active divider
-              const isDraggingThis = isDragging && dragType === "row" && draggingIndex === i;
-              const topPercent = isDraggingThis && dividerPosition !== null
-                ? dividerPosition
-                : (() => {
-                    const cumulativeFraction = effectiveRowSizes.slice(0, i + 1).reduce((a, b) => a + b, 0);
-                    const totalFraction = effectiveRowSizes.reduce((a, b) => a + b, 0);
-                    return (cumulativeFraction / totalFraction) * 100;
-                  })();
+              const topPercent = getDividerPosition(effectiveRowSizes, i);
               
               return (
                 <div
                   key={`h-${i}`}
-                  className="absolute left-0 right-0 h-6 -mt-3 cursor-row-resize pointer-events-auto group z-30"
+                  ref={el => { rowHandleRefs.current[i] = el; }}
+                  className="absolute left-0 right-0 h-6 -mt-3 cursor-row-resize pointer-events-auto group z-30 transition-none"
                   style={{ top: `${topPercent}%` }}
-                  onMouseDown={(e) => handleRowResizeStart(i, e)}
+                  onMouseDown={(e) => handleResizeStart("row", i, e)}
                   title="Drag to resize"
                 >
-                  <div className={`absolute inset-x-4 top-1/2 -translate-y-1/2 h-1.5 rounded-full transition-colors ${
-                    isDraggingThis
-                      ? 'bg-red-500'
-                      : 'bg-neutral-600/40 group-hover:bg-red-500/70'
-                  }`} />
+                  <div className="divider-line absolute inset-x-4 top-1/2 -translate-y-1/2 h-1.5 rounded-full bg-neutral-600/40 group-hover:bg-red-500/70 transition-colors" />
                 </div>
               );
             })}
@@ -387,7 +368,7 @@ export default function Viewer() {
         {/* Stream Grid */}
         <div 
           ref={gridRef}
-          className="w-full h-full grid gap-1 will-change-[grid-template-columns,grid-template-rows]"
+          className="w-full h-full grid gap-1"
           style={{
             gridTemplateColumns,
             gridTemplateRows,
@@ -448,7 +429,7 @@ export default function Viewer() {
       {isDragging && (
         <style jsx global>{`
           body {
-            cursor: ${dragType === "col" ? "col-resize" : "row-resize"} !important;
+            cursor: col-resize !important;
             user-select: none !important;
           }
         `}</style>
