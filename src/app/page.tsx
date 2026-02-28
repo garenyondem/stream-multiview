@@ -81,7 +81,7 @@ export default function Home() {
             YouTube Stream Monitor
           </h1>
           <p className="text-neutral-400">
-            Watch up to 10 live streams simultaneously
+            Watch up to 12 live streams simultaneously
           </p>
         </div>
 
@@ -91,7 +91,7 @@ export default function Home() {
             Number of Streams
           </label>
           <div className="flex flex-wrap gap-2">
-            {Array.from({ length: 10 }, (_, i) => i + 1).map((num) => (
+            {Array.from({ length: 12 }, (_, i) => i + 1).map((num) => (
               <button
                 key={num}
                 onClick={() => handleCountChange(num)}

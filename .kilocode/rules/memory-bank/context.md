@@ -33,7 +33,7 @@ A YouTube live stream monitoring application that allows users to watch up to 10
 ## Features Implemented
 
 ### Setup Page (`/`)
-- Select 1-10 streams via clickable number buttons
+- Select 1-12 streams via clickable number buttons
 - Individual URL input for each stream
 - Supports multiple YouTube URL formats (live/, watch?v=, youtu.be)
 - Validation before starting streams
@@ -84,3 +84,4 @@ The application is fully functional. Next steps depend on user requirements:
 |------|---------|
 | Initial | Template created with base setup |
 | 2026-02-28 | Added YouTube stream monitor application |
+| 2026-02-28 | Increased stream limit from 10 to 12 |
