@@ -1,10 +1,10 @@
-# Active Context: Next.js Starter Template
+# Active Context: YouTube Stream Monitor
 
 ## Current State
 
-**Template Status**: ✅ Ready for development
+**Application Status**: ✅ Ready for development
 
-The template is a clean Next.js 16 starter with TypeScript and Tailwind CSS 4. It's ready for AI-assisted expansion to build any type of application.
+A YouTube live stream monitoring application that allows users to watch up to 10 live streams simultaneously in a security camera-style interface.
 
 ## Recently Completed
 
@@ -14,74 +14,68 @@ The template is a clean Next.js 16 starter with TypeScript and Tailwind CSS 4. I
 - [x] ESLint configuration
 - [x] Memory bank documentation
 - [x] Recipe system for common features
+- [x] **NEW**: YouTube stream monitor setup page
+- [x] **NEW**: Multi-stream viewer with grid layout
+- [x] **NEW**: Soft persistence for stream URLs using React Context
+- [x] **NEW**: Dark theme styling throughout
 
 ## Current Structure
 
 | File/Directory | Purpose | Status |
 |----------------|---------|--------|
-| `src/app/page.tsx` | Home page | ✅ Ready |
-| `src/app/layout.tsx` | Root layout | ✅ Ready |
+| `src/app/page.tsx` | Stream setup page | ✅ Ready |
+| `src/app/viewer/page.tsx` | Multi-stream viewer | ✅ Ready |
+| `src/app/layout.tsx` | Root layout with dark theme | ✅ Ready |
 | `src/app/globals.css` | Global styles | ✅ Ready |
+| `src/lib/stream-context.tsx` | Stream state management | ✅ Ready |
 | `.kilocode/` | AI context & recipes | ✅ Ready |
+
+## Features Implemented
+
+### Setup Page (`/`)
+- Select 1-10 streams via clickable number buttons
+- Individual URL input for each stream
+- Supports multiple YouTube URL formats (live/, watch?v=, youtu.be)
+- Validation before starting streams
+- "Start Watching Streams" button
+
+### Viewer Page (`/viewer`)
+- Dynamic grid layout based on stream count
+- Security camera-style interface
+- Each stream in its own panel with label
+- Live indicator (pulsing red dot)
+- "Edit Streams" button (preserves URLs)
+- "Clear All" button (clears session)
+- Responsive grid (1×1, 2×1, 2×2, 3×2, 3×3, 4×3 layouts)
+
+### State Management
+- React Context for soft persistence
+- URLs preserved when navigating back/forth
+- Cleared on browser refresh
 
 ## Current Focus
 
-The template is ready. Next steps depend on user requirements:
+The application is fully functional. Next steps depend on user requirements:
 
-1. What type of application to build
-2. What features are needed
-3. Design/branding preferences
+1. Test with actual YouTube live stream URLs
+2. Add any additional features (fullscreen mode, stream reordering, etc.)
+3. Deploy for production use
 
 ## Quick Start Guide
 
-### To add a new page:
+### To use the monitor:
 
-Create a file at `src/app/[route]/page.tsx`:
-```tsx
-export default function NewPage() {
-  return <div>New page content</div>;
-}
-```
-
-### To add components:
-
-Create `src/components/` directory and add components:
-```tsx
-// src/components/ui/Button.tsx
-export function Button({ children }: { children: React.ReactNode }) {
-  return <button className="px-4 py-2 bg-blue-600 text-white rounded">{children}</button>;
-}
-```
-
-### To add a database:
-
-Follow `.kilocode/recipes/add-database.md`
-
-### To add API routes:
-
-Create `src/app/api/[route]/route.ts`:
-```tsx
-import { NextResponse } from "next/server";
-
-export async function GET() {
-  return NextResponse.json({ message: "Hello" });
-}
-```
-
-## Available Recipes
-
-| Recipe | File | Use Case |
-|--------|------|----------|
-| Add Database | `.kilocode/recipes/add-database.md` | Data persistence with Drizzle + SQLite |
-
-## Pending Improvements
-
-- [ ] Add more recipes (auth, email, etc.)
-- [ ] Add example components
-- [ ] Add testing setup recipe
+1. Open the application
+2. Select how many streams (1-10)
+3. Paste YouTube live stream URLs
+4. Click "Start Watching Streams"
+5. Streams play in grid layout
+6. Use "Edit Streams" to modify URLs
+7. Use "Clear All" to start fresh
 
 ## Session History
 
 | Date | Changes |
 |------|---------|
 | Initial | Template created with base setup |
+| 2026-02-28 | Added YouTube stream monitor application |
