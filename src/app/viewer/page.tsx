@@ -66,6 +66,8 @@ export default function Viewer() {
     startSizes: number[];
     totalSize: number;
   } | null>(null);
+  const rafId = useRef<number | null>(null);
+  const currentSizes = useRef<number[]>([]);
 
   const extractVideoId = (url: string): string | null => {
     const patterns = [
@@ -95,6 +97,17 @@ export default function Viewer() {
     router.push("/");
   };
 
+  // Update grid styles directly on DOM for smooth resizing
+  const updateGridStyles = useCallback((sizes: number[], type: "col" | "row") => {
+    if (!gridRef.current) return;
+    const template = sizes.map(s => `${s}fr`).join(" ");
+    if (type === "col") {
+      gridRef.current.style.gridTemplateColumns = template;
+    } else {
+      gridRef.current.style.gridTemplateRows = template;
+    }
+  }, []);
+
   // Handle column resize start
   const handleColResizeStart = useCallback((index: number, e: React.MouseEvent) => {
     e.preventDefault();
@@ -110,6 +123,7 @@ export default function Viewer() {
       startSizes: [...effectiveColSizes],
       totalSize: totalWidth,
     };
+    currentSizes.current = [...effectiveColSizes];
 
     setDragType("col");
     setIsDragging(true);
@@ -130,6 +144,7 @@ export default function Viewer() {
       startSizes: [...effectiveRowSizes],
       totalSize: totalHeight,
     };
+    currentSizes.current = [...effectiveRowSizes];
 
     setDragType("row");
     setIsDragging(true);
@@ -141,58 +156,88 @@ export default function Viewer() {
 
     const handleMouseMove = (e: MouseEvent) => {
       if (!dragInfo.current) return;
-      const { type, index, startPos, startSizes, totalSize } = dragInfo.current;
-
-      const delta = type === "col" ? e.clientX - startPos : e.clientY - startPos;
-      const deltaFraction = delta / (totalSize / startSizes.length);
-
-      const newSizes = [...startSizes];
-      const currentSize = startSizes[index];
-      const nextSize = startSizes[index + 1];
-
-      // Calculate new sizes with constraints (min 10% each)
-      let newCurrent = currentSize + deltaFraction;
-      let newNext = nextSize - deltaFraction;
-
-      const minSize = 0.1 * startSizes.length;
-      if (newCurrent < minSize) {
-        newNext -= minSize - newCurrent;
-        newCurrent = minSize;
-      }
-      if (newNext < minSize) {
-        newCurrent -= minSize - newNext;
-        newNext = minSize;
+      
+      // Cancel any pending animation frame
+      if (rafId.current) {
+        cancelAnimationFrame(rafId.current);
       }
 
-      newSizes[index] = newCurrent;
-      newSizes[index + 1] = newNext;
+      // Schedule update for next frame
+      rafId.current = requestAnimationFrame(() => {
+        if (!dragInfo.current) return;
+        
+        const { type, index, startPos, startSizes, totalSize } = dragInfo.current;
 
-      if (type === "col") {
-        setColSizes(newSizes);
-      } else {
-        setRowSizes(newSizes);
-      }
+        const delta = type === "col" ? e.clientX - startPos : e.clientY - startPos;
+        const deltaFraction = delta / (totalSize / startSizes.length);
+
+        const newSizes = [...startSizes];
+        const currentSize = startSizes[index];
+        const nextSize = startSizes[index + 1];
+
+        // Calculate new sizes with constraints (min 10% each)
+        let newCurrent = currentSize + deltaFraction;
+        let newNext = nextSize - deltaFraction;
+
+        const minSize = 0.1 * startSizes.length;
+        if (newCurrent < minSize) {
+          newNext -= minSize - newCurrent;
+          newCurrent = minSize;
+        }
+        if (newNext < minSize) {
+          newCurrent -= minSize - newNext;
+          newNext = minSize;
+        }
+
+        newSizes[index] = newCurrent;
+        newSizes[index + 1] = newNext;
+
+        currentSizes.current = newSizes;
+        updateGridStyles(newSizes, type);
+      });
     };
 
     const handleMouseUp = () => {
+      // Cancel any pending animation frame
+      if (rafId.current) {
+        cancelAnimationFrame(rafId.current);
+        rafId.current = null;
+      }
+
+      // Save final sizes to state
+      if (dragInfo.current) {
+        if (dragInfo.current.type === "col") {
+          setColSizes(currentSizes.current);
+        } else {
+          setRowSizes(currentSizes.current);
+        }
+      }
+
       setIsDragging(false);
       setDragType(null);
       dragInfo.current = null;
     };
 
-    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mousemove", handleMouseMove, { passive: true });
     document.addEventListener("mouseup", handleMouseUp);
 
     return () => {
       document.removeEventListener("mousemove", handleMouseMove);
       document.removeEventListener("mouseup", handleMouseUp);
+      if (rafId.current) {
+        cancelAnimationFrame(rafId.current);
+      }
     };
-  }, [isDragging]);
+  }, [isDragging, updateGridStyles]);
 
   // Reset sizes to equal distribution
   const resetSizes = () => {
     setColSizes([]);
     setRowSizes([]);
+    if (gridRef.current) {
+      gridRef.current.style.gridTemplateColumns = "";
+      gridRef.current.style.gridTemplateRows = "";
+    }
   };
 
   // Generate grid template strings
@@ -293,7 +338,7 @@ export default function Viewer() {
         {/* Stream Grid */}
         <div 
           ref={gridRef}
-          className="w-full h-full grid gap-1"
+          className="w-full h-full grid gap-1 will-change-[grid-template-columns,grid-template-rows]"
           style={{
             gridTemplateColumns,
             gridTemplateRows,
