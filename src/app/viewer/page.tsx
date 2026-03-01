@@ -721,8 +721,8 @@ export default function Viewer() {
                 )}
 
                 {/* Stream Label */}
-                <div className="absolute top-2 left-2 px-2 py-1 bg-black/70 rounded backdrop-blur-sm flex items-center gap-2">
-                  <span className="text-xs font-medium text-white">
+                <div className="absolute top-2 left-2 px-2 py-1 flex items-center gap-2">
+                  <span className="text-xs font-medium text-white drop-shadow-lg">
                     {originalIndex + 1}
                     {isActive && (
                       <span className="ml-1.5 w-1.5 h-1.5 bg-red-500 rounded-full inline-block animate-pulse" />
@@ -731,14 +731,14 @@ export default function Viewer() {
                   {layout === "stage" && !isStage && isActive && (
                     <button
                       onClick={() => moveToStage(originalIndex)}
-                      className="text-[10px] px-1.5 py-0.5 bg-purple-600/50 hover:bg-purple-600 text-purple-200 rounded transition-all opacity-50 hover:opacity-100"
+                      className="text-[10px] px-1.5 py-0.5 text-purple-300 hover:text-white transition-all opacity-50 hover:opacity-100 drop-shadow-lg"
                       title="Move to stage"
                     >
                       → Stage
                     </button>
                   )}
                   {layout === "stage" && isStage && (
-                    <span className="text-[10px] px-1.5 py-0.5 bg-purple-600/30 text-purple-400 rounded">
+                    <span className="text-[10px] px-1.5 py-0.5 text-purple-400 drop-shadow-lg">
                       Stage
                     </span>
                   )}
