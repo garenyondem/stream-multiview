@@ -49,7 +49,7 @@ Click images to view full size in a new tab.
 - **Stage Layout** — Main spotlight stream on top + grid below for the rest
 - **Stream Promotion** — Click "→ Stage" to spotlight any stream instantly
 - **Draggable Resize** — Drag grid dividers to customize panel sizes (60fps smooth!)
-- **Shareable URLs** — Share exact layout via base91 compressed URLs (~7.5% shorter!)
+- **Shareable URLs** — Share exact layout via compressed URLs
 - **Layout Modes** — Toggle between Grid (equal) and Stage (spotlight) layouts
 - **One-Click Refresh** — Reload all streams instantly without losing your layout
 - **YouTube URL Support** — Handles multiple YouTube formats automatically
