@@ -27,6 +27,7 @@ A live stream monitoring application that allows users to watch up to 12 live st
 - [x] **NEW**: Reset Layout button now respects current mode (stage vs grid)
 - [x] **NEW**: Stream label overlay now transparent - removed black background
 - [x] **NEW**: "→ Stage" button now fully transparent with text shadow for visibility
+- [x] **NEW**: Replaced base64 with base91 encoding - shareable URLs are now ~7.5% shorter
 
 ## Current Structure
 
@@ -63,7 +64,7 @@ A live stream monitoring application that allows users to watch up to 12 live st
 - **Refresh button** - reload all streams without changing layout or order
 - **Shareable URLs** - share exact layout with others via compressed URL
   - Encodes video IDs and separator positions
-  - Uses zlib compression + base64 encoding
+  - Uses zlib compression + **base91 encoding** (~7.5% shorter than base64)
   - Updates URL automatically when layout changes
   - Anyone with the link sees the exact same streams and layout
   - **60fps smooth performance** - uses direct DOM manipulation, no React re-renders during drag
@@ -131,3 +132,4 @@ The application is fully functional. Next steps depend on user requirements:
 | 2026-03-01 | Made "→ Stage" button fade in/out (50% → 100% opacity) on hover |
 | 2026-03-01 | Updated reset layout button to respect current mode (stage vs grid) |
 | 2026-03-01 | Made stream label and "→ Stage" button fully transparent with text shadows |
+| 2026-03-01 | Replaced base64 with base91 encoding - shareable URLs are now ~7.5% shorter |
