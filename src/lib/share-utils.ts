@@ -8,6 +8,98 @@ export interface StreamData {
   stageIndex?: number;
 }
 
+// Base91 character set - 91 URL-safe characters
+// Excludes: ' " \ space < > { } | \ ` ^ and control chars
+const BASE91_CHARS =
+  "ABCDEFGHIJKLMNOPQRSTUVWXYZ" +
+  "abcdefghijklmnopqrstuvwxyz" +
+  "0123456789" +
+  "!#$%&()*+,-.:;<=>?@[]^_~";
+
+const BASE91_LEN = 91;
+
+/**
+ * Encode bytes to base91 string
+ */
+function encodeBase91(bytes: Uint8Array): string {
+  let result = "";
+  let b = 0;
+  let n = 0;
+
+  for (let i = 0; i < bytes.length; i++) {
+    b |= bytes[i] << n;
+    n += 8;
+
+    if (n > 13) {
+      let v = b & 8191;
+      if (v > 88) {
+        b >>= 13;
+        n -= 13;
+      } else {
+        v = b & 16383;
+        b >>= 14;
+        n -= 14;
+      }
+      result += BASE91_CHARS[v % BASE91_LEN];
+      result += BASE91_CHARS[(v / BASE91_LEN) | 0];
+    }
+  }
+
+  if (n > 0) {
+    result += BASE91_CHARS[b % BASE91_LEN];
+    if (n > 7 || b > 90) {
+      result += BASE91_CHARS[(b / BASE91_LEN) | 0];
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Decode base91 string to bytes
+ */
+function decodeBase91(str: string): Uint8Array | null {
+  try {
+    const bytes: number[] = [];
+    let b = 0;
+    let n = 0;
+    let v = -1;
+
+    for (let i = 0; i < str.length; i++) {
+      const c = str[i];
+      const index = BASE91_CHARS.indexOf(c);
+
+      if (index === -1) {
+        return null; // Invalid character
+      }
+
+      if (v < 0) {
+        v = index;
+      } else {
+        v += index * BASE91_LEN;
+        b |= v << n;
+        n += (v & 8191) > 88 ? 13 : 14;
+
+        while (n > 7) {
+          bytes.push(b & 255);
+          b >>= 8;
+          n -= 8;
+        }
+
+        v = -1;
+      }
+    }
+
+    if (v >= 0) {
+      bytes.push((b | (v << n)) & 255);
+    }
+
+    return new Uint8Array(bytes);
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Extract video ID from various YouTube URL formats
  */
@@ -27,50 +119,23 @@ export function extractVideoId(url: string): string | null {
 }
 
 /**
- * Compress stream data using zlib and encode as base64
+ * Compress stream data using zlib and encode as base91
  */
 export function encodeStreamData(data: StreamData): string {
   const jsonString = JSON.stringify(data);
   const compressed = deflate(jsonString, { level: 9 });
-  
-  // Convert Uint8Array to binary string, then to base64
-  const binaryString = Array.from(compressed)
-    .map(byte => String.fromCharCode(byte))
-    .join("");
-  
-  return btoa(binaryString)
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=/g, "");
+  return encodeBase91(compressed);
 }
 
 /**
- * Decode base64 and decompress using zlib
+ * Decode base91 and decompress using zlib
  */
 export function decodeStreamData(encoded: string): StreamData | null {
   try {
-    // Restore base64 padding and characters
-    let base64 = encoded
-      .replace(/-/g, "+")
-      .replace(/_/g, "/");
-    
-    // Add padding if needed
-    while (base64.length % 4) {
-      base64 += "=";
-    }
-    
-    // Decode base64 to binary string
-    const binaryString = atob(base64);
-    
-    // Convert binary string to Uint8Array
-    const compressed = new Uint8Array(binaryString.length);
-    for (let i = 0; i < binaryString.length; i++) {
-      compressed[i] = binaryString.charCodeAt(i);
-    }
-    
-    // Decompress
+    const compressed = decodeBase91(encoded);
+    if (!compressed) return null;
+
     const decompressed = inflate(compressed, { to: "string" });
-    
     return JSON.parse(decompressed) as StreamData;
   } catch {
     return null;
