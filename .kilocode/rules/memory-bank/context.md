@@ -22,6 +22,9 @@ A live stream monitoring application that allows users to watch up to 12 live st
 - [x] **NEW**: Stage layout mode with main stage + bottom grid
 - [x] **NEW**: Layout selector (Grid vs Stage) in viewer header
 - [x] **NEW**: Dynamic stream promotion to/from stage
+- [x] **NEW**: Fixed vertical separators in stage mode - no longer spill into stage area
+- [x] **NEW**: "→ Stage" button now fades in/out (50% → 100% opacity on hover)
+- [x] **NEW**: Reset Layout button now respects current mode (stage vs grid)
 
 ## Current Structure
 
@@ -122,3 +125,6 @@ The application is fully functional. Next steps depend on user requirements:
 | 2026-03-01 | Added Layout selector button (Grid vs Stage) with dropdown menu |
 | 2026-03-01 | Added stream promotion controls - click "→ Stage" to move any stream to main stage |
 | 2026-03-01 | Updated shareable URLs to include layout type and stage index |
+| 2026-03-01 | Fixed vertical separators in stage mode - no longer spill into stage area |
+| 2026-03-01 | Made "→ Stage" button fade in/out (50% → 100% opacity) on hover |
+| 2026-03-01 | Updated reset layout button to respect current mode (stage vs grid) |
