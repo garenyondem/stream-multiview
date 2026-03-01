@@ -28,6 +28,7 @@ A live stream monitoring application that allows users to watch up to 12 live st
 | `src/app/layout.tsx` | Root layout with dark theme | ✅ Ready |
 | `src/app/globals.css` | Global styles | ✅ Ready |
 | `src/lib/stream-context.tsx` | Stream state management | ✅ Ready |
+| `src/lib/share-utils.ts` | URL encoding/decoding utilities | ✅ Ready |
 | `.kilocode/` | AI context & recipes | ✅ Ready |
 
 ## Features Implemented
@@ -50,6 +51,11 @@ A live stream monitoring application that allows users to watch up to 12 live st
   - 10+ streams: 4×3 grid
 - **Draggable resize handles** - drag grid dividers to resize stream panels
 - **Refresh button** - reload all streams without changing layout or order
+- **Shareable URLs** - share exact layout with others via compressed URL
+  - Encodes video IDs and separator positions
+  - Uses zlib compression + base64 encoding
+  - Updates URL automatically when layout changes
+  - Anyone with the link sees the exact same streams and layout
   - **60fps smooth performance** - uses direct DOM manipulation, no React re-renders during drag
   - Handles follow mouse cursor during drag for smooth visual feedback
   - Minimum 10% size constraint per panel
@@ -98,5 +104,6 @@ The application is fully functional. Next steps depend on user requirements:
 | 2026-02-28 | Added draggable grid resize handles for custom stream panel sizes |
 | 2026-02-28 | Made resize dividers thicker and easier to grab |
 | 2026-02-28 | Added refresh button to reload all streams |
+| 2026-03-01 | Added shareable URL feature with zlib compression |
 | 2026-02-28 | Divider now follows mouse cursor exactly during drag operation |
 | 2026-02-28 | Refactored resize logic for 60fps performance - pure DOM manipulation, no React re-renders during drag |
