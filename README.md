@@ -46,8 +46,11 @@ Click images to view full size in a new tab.
 ## 🎯 Features
 
 - **Multi-Stream Grid** — Dynamic layout adapts to your stream count (1-12 streams)
+- **Stage Layout** — Main spotlight stream on top + grid below for the rest
+- **Stream Promotion** — Click "→ Stage" to spotlight any stream instantly
 - **Draggable Resize** — Drag grid dividers to customize panel sizes (60fps smooth!)
-- **Shareable URLs** — Share your exact layout with anyone via compressed URLs
+- **Shareable URLs** — Share exact layout via base91 compressed URLs (~7.5% shorter!)
+- **Layout Modes** — Toggle between Grid (equal) and Stage (spotlight) layouts
 - **One-Click Refresh** — Reload all streams instantly without losing your layout
 - **YouTube URL Support** — Handles multiple YouTube formats automatically
 - **Soft Persistence** — Stream URLs stick around while you navigate (cleared on refresh)
@@ -87,10 +90,12 @@ bun dev
 2. **Select stream count** — Click 1-12 to choose how many streams
 3. **Paste YouTube URLs** — Supports live/, watch?v=, youtu.be formats
 4. **Start watching** — Click "Start Watching Streams"
-5. **Customize layout** — Drag the red grid dividers to resize panels
-6. **Share your view** — Click "Share" to copy a link to your exact layout
-7. **Refresh streams** — Click "Refresh" to reload all streams instantly
-8. **Enjoy your grid** — All streams play simultaneously!
+5. **Choose layout** — Switch between **Grid** (equal) or **Stage** (spotlight) mode
+6. **Spotlight streams** — In Stage mode, click "→ Stage" to spotlight any stream
+7. **Customize layout** — Drag the red grid dividers to resize panels
+8. **Share your view** — Click "Share" to copy a link to your exact layout
+9. **Refresh streams** — Click "Refresh" to reload all streams instantly
+10. **Enjoy your grid** — All streams play simultaneously!
 
 ## 🧞 Commands
 
