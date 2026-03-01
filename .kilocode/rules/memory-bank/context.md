@@ -19,6 +19,9 @@ A live stream monitoring application that allows users to watch up to 12 live st
 - [x] **NEW**: Soft persistence for stream URLs using React Context
 - [x] **NEW**: Dark theme styling throughout
 - [x] **NEW**: Fixed scrolling on setup page for 7+ streams
+- [x] **NEW**: Stage layout mode with main stage + bottom grid
+- [x] **NEW**: Layout selector (Grid vs Stage) in viewer header
+- [x] **NEW**: Dynamic stream promotion to/from stage
 
 ## Current Structure
 
@@ -68,6 +71,11 @@ A live stream monitoring application that allows users to watch up to 12 live st
 - Each stream in its own panel with label
 - Live indicator (pulsing red dot)
 - "Edit", "Refresh", "Clear", and "Reset Layout" buttons in compact header
+- **Layout Selector** - Switch between "Grid" (equal) and "Stage" layouts
+  - Grid: All streams in equal-sized grid cells
+  - Stage: Main large stream on top, remaining streams in grid below
+- **Stream Promotion** - Click "→ Stage" on any non-stage stream to move it to the main stage
+- Stage layout includes "Stage Mode" indicator in header
 
 ### State Management
 - React Context for soft persistence
@@ -110,3 +118,7 @@ The application is fully functional. Next steps depend on user requirements:
 | 2026-03-01 | Added shareable URL feature with zlib compression |
 | 2026-02-28 | Divider now follows mouse cursor exactly during drag operation |
 | 2026-02-28 | Refactored resize logic for 60fps performance - pure DOM manipulation, no React re-renders during drag |
+| 2026-03-01 | Added Stage layout feature with top half main stream + bottom grid |
+| 2026-03-01 | Added Layout selector button (Grid vs Stage) with dropdown menu |
+| 2026-03-01 | Added stream promotion controls - click "→ Stage" to move any stream to main stage |
+| 2026-03-01 | Updated shareable URLs to include layout type and stage index |
