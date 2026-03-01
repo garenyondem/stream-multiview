@@ -169,10 +169,6 @@ export default function Home() {
             GitHub
           </a>
           <span className="text-neutral-700">|</span>
-          <a href="#" className="hover:text-white transition-colors">
-            Disclaimer
-          </a>
-          <span className="text-neutral-700">|</span>
           <span>Open Source:</span>
           <a
             href="https://react.dev"
