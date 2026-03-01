@@ -382,15 +382,40 @@ export default function Viewer() {
     };
   }, [isDragging, handleMouseMove, handleMouseUp]);
 
-  // Reset sizes to equal distribution
+  // Reset sizes to equal distribution based on current layout mode
   const resetSizes = () => {
-    setColSizes([]);
-    setRowSizes([]);
-    if (gridRef.current) {
-      gridRef.current.style.gridTemplateColumns = "";
-      gridRef.current.style.gridTemplateRows = "";
+    if (layout === "stage") {
+      // Stage mode: stage row gets 2fr, bottom rows get 1fr each
+      const bottomRowCount = gridRows - 1;
+      const newRowSizes = bottomRowCount > 0
+        ? [2, ...Array(bottomRowCount).fill(1)]
+        : [3];
+      const newColSizes = Array(gridCols).fill(1);
+      
+      setColSizes(newColSizes);
+      setRowSizes(newRowSizes);
+      
+      if (gridRef.current) {
+        gridRef.current.style.gridTemplateColumns = newColSizes.map(s => `${s}fr`).join(" ");
+        gridRef.current.style.gridTemplateRows = newRowSizes.map(s => `${s}fr`).join(" ");
+      }
+      
+      updateShareableUrl(newColSizes, newRowSizes, layout, stageIndex);
+    } else {
+      // Grid mode: all equal 1fr
+      const newColSizes = Array(gridCols).fill(1);
+      const newRowSizes = Array(gridRows).fill(1);
+      
+      setColSizes(newColSizes);
+      setRowSizes(newRowSizes);
+      
+      if (gridRef.current) {
+        gridRef.current.style.gridTemplateColumns = newColSizes.map(s => `${s}fr`).join(" ");
+        gridRef.current.style.gridTemplateRows = newRowSizes.map(s => `${s}fr`).join(" ");
+      }
+      
+      updateShareableUrl(newColSizes, newRowSizes, layout, stageIndex);
     }
-    updateShareableUrl([], [], layout, stageIndex);
   };
 
   // Generate grid template strings
