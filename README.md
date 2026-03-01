@@ -30,6 +30,9 @@ Stream MultiView is your personal command center for monitoring multiple YouTube
 ## 🎯 Features
 
 - **Multi-Stream Grid** — Dynamic layout adapts to your stream count (1-12 streams)
+- **Draggable Resize** — Drag grid dividers to customize panel sizes (60fps smooth!)
+- **Shareable URLs** — Share your exact layout with anyone via compressed URLs
+- **One-Click Refresh** — Reload all streams instantly without losing your layout
 - **YouTube URL Support** — Handles multiple YouTube formats automatically
 - **Soft Persistence** — Stream URLs stick around while you navigate (cleared on refresh)
 - **Dark Theme** — Easy on the eyes for those long streaming sessions
@@ -42,11 +45,12 @@ Stream MultiView is your personal command center for monitoring multiple YouTube
 src/
 ├── app/
 │   ├── page.tsx          # Setup page — select streams & enter URLs
-│   ├── viewer/page.tsx   # Multi-stream grid viewer
+│   ├── viewer/page.tsx   # Multi-stream grid viewer with resize & share
 │   ├── layout.tsx        # Root layout with dark theme
 │   └── globals.css       # Global styles
 ├── lib/
-│   └── stream-context.tsx # React Context for state management
+│   ├── stream-context.tsx # React Context for state management
+│   └── share-utils.ts    # URL encoding/decoding for shareable links
 ```
 
 ## 🛠️ Getting Started
@@ -67,7 +71,10 @@ bun dev
 2. **Select stream count** — Click 1-12 to choose how many streams
 3. **Paste YouTube URLs** — Supports live/, watch?v=, youtu.be formats
 4. **Start watching** — Click "Start Watching Streams"
-5. **Enjoy your grid** — All streams play simultaneously!
+5. **Customize layout** — Drag the red grid dividers to resize panels
+6. **Share your view** — Click "Share" to copy a link to your exact layout
+7. **Refresh streams** — Click "Refresh" to reload all streams instantly
+8. **Enjoy your grid** — All streams play simultaneously!
 
 ## 🧞 Commands
 
