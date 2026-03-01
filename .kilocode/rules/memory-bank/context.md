@@ -18,6 +18,7 @@ A live stream monitoring application that allows users to watch up to 12 live st
 - [x] **NEW**: Multi-stream viewer with grid layout
 - [x] **NEW**: Soft persistence for stream URLs using React Context
 - [x] **NEW**: Dark theme styling throughout
+- [x] **NEW**: Fixed scrolling on setup page for 7+ streams
 
 ## Current Structure
 
@@ -39,6 +40,7 @@ A live stream monitoring application that allows users to watch up to 12 live st
 - Supports multiple YouTube URL formats (live/, watch?v=, youtu.be)
 - Validation before starting streams
 - "Start Watching Streams" button
+- **Scrollable layout** - page scrolls when adding 7+ streams so button stays accessible
 
 ### Viewer Page (`/viewer`)
 - **Full-screen layout** - uses entire viewport (100vh × 100vw)
@@ -98,6 +100,7 @@ The application is fully functional. Next steps depend on user requirements:
 |------|---------|
 | Initial | Template created with base setup |
 | 2026-02-28 | Added YouTube stream monitor application |
+| 2026-03-01 | Fixed scrolling on setup page for many streams |
 | 2026-02-28 | Increased stream limit from 10 to 12 |
 | 2026-02-28 | Made setup page scrollable for long content |
 | 2026-02-28 | Fixed scrolling by removing flexbox centering that blocked overflow |

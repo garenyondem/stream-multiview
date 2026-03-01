@@ -78,7 +78,7 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen bg-neutral-950 p-4 py-8 overflow-y-auto">
+    <main className="min-h-screen bg-neutral-950 p-4 py-8">
       <div className="w-full max-w-2xl mx-auto bg-neutral-900 rounded-2xl border border-neutral-800 p-8 shadow-2xl">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-white mb-2">
