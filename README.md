@@ -17,6 +17,22 @@ Stream MultiView is your personal command center for monitoring multiple YouTube
 - 🏆 Watching different angles of esports tournaments
 - 🎥 Any scenario where you need multiple streams!
 
+## 📸 Screenshots
+
+Click images to view full size in a new tab.
+
+<a href="https://github.com/user-attachments/assets/161dd803-d5ed-47c5-98de-bab01285f4b2" target="_blank">
+  <img src="https://github.com/user-attachments/assets/161dd803-d5ed-47c5-98de-bab01285f4b2" alt="Main Setup Page" width="600">
+</a>
+
+*Main setup page — select streams and paste YouTube URLs*
+
+<a href="https://github.com/user-attachments/assets/8037af75-a60a-4ef5-99c4-61d60593950f" target="_blank">
+  <img src="https://github.com/user-attachments/assets/8037af75-a60a-4ef5-99c4-61d60593950f" alt="Multi-Stream Viewer" width="600">
+</a>
+
+*Multi-stream viewer — watch up to 12 streams with draggable resize*
+
 ## 🚀 Tech Stack
 
 | Technology | Purpose |
