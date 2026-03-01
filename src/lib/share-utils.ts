@@ -4,6 +4,8 @@ export interface StreamData {
   videoIds: string[];
   colSizes: number[];
   rowSizes: number[];
+  layout?: "grid" | "stage";
+  stageIndex?: number;
 }
 
 /**

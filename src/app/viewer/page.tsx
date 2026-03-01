@@ -1,9 +1,12 @@
+/* eslint-disable react-hooks/set-state-in-effect, react-hooks/preserve-manual-memoization */
 "use client";
 
 import { useStreams } from "@/lib/stream-context";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useSyncExternalStore, useCallback, useMemo } from "react";
-import { extractVideoId, decodeStreamData, encodeStreamData } from "@/lib/share-utils";
+import { extractVideoId, decodeStreamData, encodeStreamData, StreamData } from "@/lib/share-utils";
+
+type LayoutType = "grid" | "stage";
 
 // Hook to track mounted state without causing cascading renders
 function useMounted() {
@@ -15,7 +18,7 @@ function useMounted() {
 }
 
 // Parse shared data from URL on first render (avoids useSearchParams issues)
-function parseSharedDataFromUrl(): { videoIds: string[]; colSizes: number[]; rowSizes: number[] } | null {
+function parseSharedDataFromUrl(): StreamData | null {
   if (typeof window === "undefined") return null;
   const params = new URLSearchParams(window.location.search);
   const encodedData = params.get("data");
@@ -39,7 +42,16 @@ export default function Viewer() {
     const shared = parseSharedDataFromUrl();
     return shared?.rowSizes ?? [];
   });
+  const [layout, setLayout] = useState<LayoutType>(() => {
+    const shared = parseSharedDataFromUrl();
+    return shared?.layout ?? "grid";
+  });
+  const [stageIndex, setStageIndex] = useState<number>(() => {
+    const shared = parseSharedDataFromUrl();
+    return shared?.stageIndex ?? 0;
+  });
   const [showShareDialog, setShowShareDialog] = useState(false);
+  const [showLayoutMenu, setShowLayoutMenu] = useState(false);
   const [copied, setCopied] = useState(false);
 
   // Restore streams from shared data once on mount
@@ -47,10 +59,12 @@ export default function Viewer() {
     const shared = parseSharedDataFromUrl();
     if (shared && mounted && streamUrls.every(url => url === "")) {
       const restoredUrls = shared.videoIds.map(
-        (id) => `https://youtube.com/embed/${id}`
+        (id: string) => `https://youtube.com/embed/${id}`
       );
       setStreamUrls(restoredUrls);
       setStreamCount(restoredUrls.length);
+      setLayout(shared.layout ?? "grid");
+      setStageIndex(shared.stageIndex ?? 0);
     }
   }, [mounted, setStreamUrls, setStreamCount, streamUrls]);
 
@@ -63,30 +77,55 @@ export default function Viewer() {
     }
   }, [mounted, streamUrls, router]);
 
-  // Calculate grid layout based on number of active streams
+  // Calculate number of active streams
   const activeUrls = streamUrls.filter((url) => url.trim() !== "");
   const activeCount = activeUrls.length || streamCount;
 
-  // Calculate optimal grid dimensions based on count
+  // Calculate optimal grid dimensions based on count (for bottom row in stage mode)
+  const getBottomGridDimensions = (count: number): { cols: number; rows: number } => {
+    if (count <= 1) return { cols: 1, rows: 1 };
+    if (count === 2) return { cols: 2, rows: 1 };
+    if (count <= 4) return { cols: 2, rows: 2 };
+    if (count <= 6) return { cols: 3, rows: 2 };
+    if (count <= 9) return { cols: 3, rows: 3 };
+    return { cols: 4, rows: 3 };
+  };
+
   const getGridDimensions = (count: number): { cols: number; rows: number } => {
     if (count <= 1) return { cols: 1, rows: 1 };
     if (count === 2) return { cols: 2, rows: 1 };
     if (count <= 4) return { cols: 2, rows: 2 };
     if (count <= 6) return { cols: 3, rows: 2 };
     if (count <= 9) return { cols: 3, rows: 3 };
-    return { cols: 4, rows: 3 }; // Up to 12
+    return { cols: 4, rows: 3 };
   };
 
-  const { cols, rows } = getGridDimensions(activeCount);
+  const { cols: gridCols, rows: gridRows } = useMemo(() => {
+    if (layout === "stage") {
+      const bottomCount = activeCount - 1;
+      if (bottomCount <= 0) return { cols: 1, rows: 1 };
+      const dims = getBottomGridDimensions(bottomCount);
+      return { cols: dims.cols, rows: 1 + dims.rows }; // +1 for stage row
+    }
+    return getGridDimensions(activeCount);
+  }, [activeCount, layout]);
 
   // Get effective sizes (padded with 1s if needed)
   const effectiveColSizes = useMemo(() => {
-    return colSizes.length >= cols ? colSizes.slice(0, cols) : [...colSizes, ...Array(cols - colSizes.length).fill(1)];
-  }, [colSizes, cols]);
+    return colSizes.length >= gridCols ? colSizes.slice(0, gridCols) : [...colSizes, ...Array(gridCols - colSizes.length).fill(1)];
+  }, [colSizes, gridCols]);
 
   const effectiveRowSizes = useMemo(() => {
-    return rowSizes.length >= rows ? rowSizes.slice(0, rows) : [...rowSizes, ...Array(rows - rowSizes.length).fill(1)];
-  }, [rowSizes, rows]);
+    if (layout === "stage") {
+      // For stage layout: first row is stage (2x), bottom rows are equal
+      const bottomRowCount = gridRows - 1;
+      if (bottomRowCount <= 0) return [3];
+      const bottomSize = rowSizes.length > 1 ? rowSizes.slice(1) : Array(bottomRowCount).fill(1);
+      const stageSize = rowSizes.length > 0 ? rowSizes[0] : 2;
+      return [stageSize, ...bottomSize].slice(0, gridRows);
+    }
+    return rowSizes.length >= gridRows ? rowSizes.slice(0, gridRows) : [...rowSizes, ...Array(gridRows - rowSizes.length).fill(1)];
+  }, [rowSizes, gridRows, layout]);
 
   // Drag state - minimal React state, mostly refs for performance
   const [isDragging, setIsDragging] = useState(false);
@@ -97,11 +136,10 @@ export default function Viewer() {
     gridRect: DOMRect;
     startClientPos: number;
   } | null>(null);
-  
+
   // Refs to DOM elements for direct manipulation
   const colHandleRefs = useRef<(HTMLDivElement | null)[]>([]);
   const rowHandleRefs = useRef<(HTMLDivElement | null)[]>([]);
-
 
   const getEmbedUrl = (videoId: string): string => {
     return `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&enablejsapi=1&rel=0`;
@@ -128,8 +166,31 @@ export default function Viewer() {
     });
   };
 
+  const switchLayout = (newLayout: LayoutType) => {
+    setLayout(newLayout);
+    setShowLayoutMenu(false);
+    // Reset sizes when switching layouts
+    setColSizes([]);
+    setRowSizes([]);
+    if (gridRef.current) {
+      gridRef.current.style.gridTemplateColumns = "";
+      gridRef.current.style.gridTemplateRows = "";
+    }
+    updateShareableUrl([], [], newLayout, stageIndex);
+  };
+
+  const moveToStage = (index: number) => {
+    setStageIndex(index);
+    updateShareableUrl(colSizes, rowSizes, layout, index);
+  };
+
   // Update URL with current layout for sharing
-  const updateShareableUrl = useCallback((currentColSizes: number[], currentRowSizes: number[]) => {
+  const updateShareableUrl = useCallback((
+    currentColSizes: number[], 
+    currentRowSizes: number[],
+    currentLayout: LayoutType = layout,
+    currentStageIndex: number = stageIndex
+  ) => {
     const videoIds = streamUrls
       .map(url => extractVideoId(url))
       .filter((id): id is string => id !== null);
@@ -140,6 +201,8 @@ export default function Viewer() {
       videoIds,
       colSizes: currentColSizes,
       rowSizes: currentRowSizes,
+      layout: currentLayout,
+      stageIndex: currentStageIndex,
     };
     
     const encoded = encodeStreamData(streamData);
@@ -147,7 +210,7 @@ export default function Viewer() {
     
     // Update URL without triggering navigation
     window.history.replaceState(null, "", newUrl);
-  }, [streamUrls]);
+  }, [streamUrls, layout, stageIndex]);
 
   // Calculate divider position as percentage
   const getDividerPosition = useCallback((sizes: number[], index: number): number => {
@@ -171,15 +234,15 @@ export default function Viewer() {
 
   // Update all divider positions based on current sizes
   const updateAllDividerPositions = useCallback(() => {
-    for (let i = 0; i < cols - 1; i++) {
+    for (let i = 0; i < gridCols - 1; i++) {
       const pos = getDividerPosition(effectiveColSizes, i);
       updateDividerPosition("col", i, pos);
     }
-    for (let i = 0; i < rows - 1; i++) {
+    for (let i = 0; i < gridRows - 1; i++) {
       const pos = getDividerPosition(effectiveRowSizes, i);
       updateDividerPosition("row", i, pos);
     }
-  }, [cols, rows, effectiveColSizes, effectiveRowSizes, getDividerPosition, updateDividerPosition]);
+  }, [gridCols, gridRows, effectiveColSizes, effectiveRowSizes, getDividerPosition, updateDividerPosition]);
 
   // Update grid styles directly on DOM for smooth resizing
   const updateGridStyles = useCallback((sizes: number[], type: "col" | "row") => {
@@ -289,7 +352,7 @@ export default function Viewer() {
     }
 
     // Update URL with new layout
-    updateShareableUrl(currentColSizes, currentRowSizes);
+    updateShareableUrl(currentColSizes, currentRowSizes, layout, stageIndex);
 
     // Remove highlight from divider
     const refs = type === "col" ? colHandleRefs : rowHandleRefs;
@@ -304,7 +367,7 @@ export default function Viewer() {
 
     dragInfo.current = null;
     setIsDragging(false);
-  }, [effectiveColSizes, effectiveRowSizes, updateShareableUrl]);
+  }, [effectiveColSizes, effectiveRowSizes, updateShareableUrl, layout, stageIndex]);
 
   // Setup global mouse events
   useEffect(() => {
@@ -327,13 +390,39 @@ export default function Viewer() {
       gridRef.current.style.gridTemplateColumns = "";
       gridRef.current.style.gridTemplateRows = "";
     }
-    // Update URL without custom sizes
-    updateShareableUrl([], []);
+    updateShareableUrl([], [], layout, stageIndex);
   };
 
   // Generate grid template strings
   const gridTemplateColumns = effectiveColSizes.map(s => `${s}fr`).join(" ");
   const gridTemplateRows = effectiveRowSizes.map(s => `${s}fr`).join(" ");
+
+  // Get displayed streams based on layout
+  const getDisplayedStreams = () => {
+    if (layout === "grid") {
+      return streamUrls.slice(0, activeCount).map((url, index) => ({ url, index }));
+    }
+    // Stage layout: stage stream first, then remaining streams
+    const allStreams = streamUrls.slice(0, activeCount).map((url, index) => ({ url, index }));
+    const stageStream = allStreams[stageIndex];
+    const otherStreams = allStreams.filter((_, i) => i !== stageIndex);
+    return [stageStream, ...otherStreams].filter(Boolean);
+  };
+
+  // Check if an index is the stage position
+  const isStagePosition = (displayIndex: number) => {
+    return layout === "stage" && displayIndex === 0;
+  };
+
+  // Get original index from display position
+  const getOriginalIndex = (displayIndex: number): number => {
+    if (layout === "grid") return displayIndex;
+    if (displayIndex === 0) return stageIndex;
+    // Map display index back to original index
+    const allIndices = Array.from({ length: activeCount }, (_, i) => i);
+    const otherIndices = allIndices.filter(i => i !== stageIndex);
+    return otherIndices[displayIndex - 1];
+  };
 
   if (!mounted) {
     return (
@@ -342,6 +431,8 @@ export default function Viewer() {
       </main>
     );
   }
+
+  const displayedStreams = getDisplayedStreams();
 
   return (
     <main className="h-screen w-screen bg-black flex flex-col overflow-hidden">
@@ -352,8 +443,60 @@ export default function Viewer() {
           <span className="text-xs text-neutral-500">
             {activeCount} stream{activeCount !== 1 ? "s" : ""}
           </span>
+          {layout === "stage" && (
+            <span className="text-xs px-2 py-0.5 bg-purple-600/30 text-purple-400 rounded">
+              Stage Mode
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2">
+          {/* Layout Selector */}
+          <div className="relative">
+            <button
+              onClick={() => setShowLayoutMenu(!showLayoutMenu)}
+              className="px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 text-white text-xs font-medium rounded transition-colors flex items-center gap-1.5"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                <line x1="3" y1="9" x2="21" y2="9"></line>
+                <line x1="9" y1="21" x2="9" y2="9"></line>
+              </svg>
+              Layout
+            </button>
+            {showLayoutMenu && (
+              <div className="absolute right-0 top-full mt-2 w-48 bg-neutral-800 border border-neutral-700 rounded-lg shadow-xl z-50 p-2">
+                <button
+                  onClick={() => switchLayout("grid")}
+                  className={`w-full px-3 py-2 text-left text-xs rounded transition-colors flex items-center gap-2 ${
+                    layout === "grid" ? "bg-neutral-700 text-white" : "text-neutral-300 hover:bg-neutral-700"
+                  }`}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="3" width="7" height="7"></rect>
+                    <rect x="14" y="3" width="7" height="7"></rect>
+                    <rect x="14" y="14" width="7" height="7"></rect>
+                    <rect x="3" y="14" width="7" height="7"></rect>
+                  </svg>
+                  Grid (Equal)
+                </button>
+                <button
+                  onClick={() => switchLayout("stage")}
+                  className={`w-full px-3 py-2 text-left text-xs rounded transition-colors flex items-center gap-2 mt-1 ${
+                    layout === "stage" ? "bg-purple-600/30 text-purple-400" : "text-neutral-300 hover:bg-neutral-700"
+                  }`}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="3" width="18" height="10"></rect>
+                    <rect x="3" y="16" width="5" height="5"></rect>
+                    <rect x="9.5" y="16" width="5" height="5"></rect>
+                    <rect x="16" y="16" width="5" height="5"></rect>
+                  </svg>
+                  Stage + Grid
+                </button>
+              </div>
+            )}
+          </div>
+
           {(colSizes.length > 0 || rowSizes.length > 0) && (
             <button
               onClick={resetSizes}
@@ -453,9 +596,9 @@ export default function Viewer() {
       {/* Stream Grid Container */}
       <div className="flex-1 relative">
         {/* Vertical Resize Handles */}
-        {cols > 1 && (
+        {gridCols > 1 && (
           <div className="absolute inset-0 pointer-events-none z-20">
-            {Array.from({ length: cols - 1 }, (_, i) => {
+            {Array.from({ length: gridCols - 1 }, (_, i) => {
               const leftPercent = getDividerPosition(effectiveColSizes, i);
               
               return (
@@ -475,9 +618,9 @@ export default function Viewer() {
         )}
 
         {/* Horizontal Resize Handles */}
-        {rows > 1 && (
+        {gridRows > 1 && (
           <div className="absolute inset-0 pointer-events-none z-20">
-            {Array.from({ length: rows - 1 }, (_, i) => {
+            {Array.from({ length: gridRows - 1 }, (_, i) => {
               const topPercent = getDividerPosition(effectiveRowSizes, i);
               
               return (
@@ -505,20 +648,28 @@ export default function Viewer() {
             gridTemplateRows,
           }}
         >
-          {streamUrls.slice(0, activeCount).map((url, index) => {
+          {displayedStreams.map((streamItem, displayIndex) => {
+            const originalIndex = getOriginalIndex(displayIndex);
+            const url = streamItem.url;
             const videoId = extractVideoId(url);
             const isActive = url.trim() !== "" && videoId;
+            const isStage = isStagePosition(displayIndex);
 
             return (
               <div
-                key={index}
-                className="relative bg-neutral-900 overflow-hidden"
+                key={originalIndex}
+                className={`relative bg-neutral-900 overflow-hidden ${
+                  isStage ? "col-span-full" : ""
+                }`}
+                style={{
+                  gridColumn: isStage ? `1 / -1` : undefined,
+                }}
               >
                 {isActive ? (
                   <iframe
-                    ref={el => { iframeRefs.current[index] = el; }}
+                    ref={el => { iframeRefs.current[originalIndex] = el; }}
                     src={getEmbedUrl(videoId!)}
-                    title={`Stream ${index + 1}`}
+                    title={`Stream ${originalIndex + 1}`}
                     className="w-full h-full"
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                     allowFullScreen
@@ -528,7 +679,7 @@ export default function Viewer() {
                   <div className="w-full h-full flex flex-col items-center justify-center text-neutral-600">
                     <div className="w-12 h-12 rounded-full bg-neutral-800 flex items-center justify-center mb-2">
                       <span className="text-lg font-bold text-neutral-500">
-                        {index + 1}
+                        {originalIndex + 1}
                       </span>
                     </div>
                     <span className="text-xs">No stream</span>
@@ -536,13 +687,27 @@ export default function Viewer() {
                 )}
 
                 {/* Stream Label */}
-                <div className="absolute top-2 left-2 px-2 py-1 bg-black/70 rounded backdrop-blur-sm">
+                <div className="absolute top-2 left-2 px-2 py-1 bg-black/70 rounded backdrop-blur-sm flex items-center gap-2">
                   <span className="text-xs font-medium text-white">
-                    {index + 1}
+                    {originalIndex + 1}
                     {isActive && (
                       <span className="ml-1.5 w-1.5 h-1.5 bg-red-500 rounded-full inline-block animate-pulse" />
                     )}
                   </span>
+                  {layout === "stage" && !isStage && isActive && (
+                    <button
+                      onClick={() => moveToStage(originalIndex)}
+                      className="text-[10px] px-1.5 py-0.5 bg-purple-600/50 hover:bg-purple-600/70 text-purple-200 rounded transition-colors"
+                      title="Move to stage"
+                    >
+                      → Stage
+                    </button>
+                  )}
+                  {layout === "stage" && isStage && (
+                    <span className="text-[10px] px-1.5 py-0.5 bg-purple-600/30 text-purple-400 rounded">
+                      Stage
+                    </span>
+                  )}
                 </div>
               </div>
             );
