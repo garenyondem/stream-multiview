@@ -3,6 +3,7 @@
 import { useStreams } from "@/lib/stream-context";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useSyncExternalStore, useCallback, useMemo } from "react";
+import { extractVideoId, decodeStreamData, encodeStreamData } from "@/lib/share-utils";
 
 // Hook to track mounted state without causing cascading renders
 function useMounted() {
@@ -13,16 +14,49 @@ function useMounted() {
   );
 }
 
+// Parse shared data from URL on first render (avoids useSearchParams issues)
+function parseSharedDataFromUrl(): { videoIds: string[]; colSizes: number[]; rowSizes: number[] } | null {
+  if (typeof window === "undefined") return null;
+  const params = new URLSearchParams(window.location.search);
+  const encodedData = params.get("data");
+  if (!encodedData) return null;
+  return decodeStreamData(encodedData);
+}
+
 export default function Viewer() {
-  const { streamCount, streamUrls, setStreamUrls } = useStreams();
+  const { streamCount, streamUrls, setStreamUrls, setStreamCount } = useStreams();
   const router = useRouter();
   const mounted = useMounted();
   const gridRef = useRef<HTMLDivElement>(null);
   const iframeRefs = useRef<(HTMLIFrameElement | null)[]>([]);
 
-  // Redirect if no streams configured
+  // Use lazy state initialization to read URL params once
+  const [colSizes, setColSizes] = useState<number[]>(() => {
+    const shared = parseSharedDataFromUrl();
+    return shared?.colSizes ?? [];
+  });
+  const [rowSizes, setRowSizes] = useState<number[]>(() => {
+    const shared = parseSharedDataFromUrl();
+    return shared?.rowSizes ?? [];
+  });
+
+  // Restore streams from shared data once on mount
   useEffect(() => {
-    if (mounted && streamUrls.every((url) => url === "")) {
+    const shared = parseSharedDataFromUrl();
+    if (shared && mounted && streamUrls.every(url => url === "")) {
+      const restoredUrls = shared.videoIds.map(
+        (id) => `https://youtube.com/embed/${id}`
+      );
+      setStreamUrls(restoredUrls);
+      setStreamCount(restoredUrls.length);
+    }
+  }, [mounted, setStreamUrls, setStreamCount, streamUrls]);
+
+  // Redirect if no streams configured and no shared data
+  useEffect(() => {
+    const hasSharedData = typeof window !== "undefined" && 
+      new URLSearchParams(window.location.search).has("data");
+    if (mounted && streamUrls.every((url) => url === "") && !hasSharedData) {
       router.push("/");
     }
   }, [mounted, streamUrls, router]);
@@ -42,10 +76,6 @@ export default function Viewer() {
   };
 
   const { cols, rows } = getGridDimensions(activeCount);
-
-  // State for custom column and row sizes (in fractions)
-  const [colSizes, setColSizes] = useState<number[]>([]);
-  const [rowSizes, setRowSizes] = useState<number[]>([]);
 
   // Get effective sizes (padded with 1s if needed)
   const effectiveColSizes = useMemo(() => {
@@ -70,20 +100,6 @@ export default function Viewer() {
   const colHandleRefs = useRef<(HTMLDivElement | null)[]>([]);
   const rowHandleRefs = useRef<(HTMLDivElement | null)[]>([]);
 
-  const extractVideoId = (url: string): string | null => {
-    const patterns = [
-      /(?:youtube\.com\/live\/)([a-zA-Z0-9_-]+)/,
-      /(?:youtube\.com\/watch\?v=)([a-zA-Z0-9_-]+)/,
-      /(?:youtu\.be\/)([a-zA-Z0-9_-]+)/,
-      /(?:youtube\.com\/embed\/)([a-zA-Z0-9_-]+)/,
-    ];
-
-    for (const pattern of patterns) {
-      const match = url.match(pattern);
-      if (match) return match[1];
-    }
-    return null;
-  };
 
   const getEmbedUrl = (videoId: string): string => {
     return `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&enablejsapi=1&rel=0`;
@@ -109,6 +125,27 @@ export default function Viewer() {
       }
     });
   };
+
+  // Update URL with current layout for sharing
+  const updateShareableUrl = useCallback((currentColSizes: number[], currentRowSizes: number[]) => {
+    const videoIds = streamUrls
+      .map(url => extractVideoId(url))
+      .filter((id): id is string => id !== null);
+    
+    if (videoIds.length === 0) return;
+    
+    const streamData = {
+      videoIds,
+      colSizes: currentColSizes,
+      rowSizes: currentRowSizes,
+    };
+    
+    const encoded = encodeStreamData(streamData);
+    const newUrl = `/viewer?data=${encoded}`;
+    
+    // Update URL without triggering navigation
+    window.history.replaceState(null, "", newUrl);
+  }, [streamUrls]);
 
   // Calculate divider position as percentage
   const getDividerPosition = useCallback((sizes: number[], index: number): number => {
@@ -230,23 +267,27 @@ export default function Viewer() {
     if (!dragInfo.current) return;
 
     const { type, index } = dragInfo.current;
-    const sizes = type === "col" ? effectiveColSizes : effectiveRowSizes;
 
     // Get current sizes from grid style
+    let currentColSizes = effectiveColSizes;
+    let currentRowSizes = effectiveRowSizes;
+    
     if (gridRef.current) {
-      const template = type === "col" 
-        ? gridRef.current.style.gridTemplateColumns 
-        : gridRef.current.style.gridTemplateRows;
+      const colTemplate = gridRef.current.style.gridTemplateColumns;
+      const rowTemplate = gridRef.current.style.gridTemplateRows;
       
-      if (template) {
-        const currentSizes = template.split(" ").map(s => parseFloat(s));
-        if (type === "col") {
-          setColSizes(currentSizes);
-        } else {
-          setRowSizes(currentSizes);
-        }
+      if (colTemplate) {
+        currentColSizes = colTemplate.split(" ").map(s => parseFloat(s));
+        setColSizes(currentColSizes);
+      }
+      if (rowTemplate) {
+        currentRowSizes = rowTemplate.split(" ").map(s => parseFloat(s));
+        setRowSizes(currentRowSizes);
       }
     }
+
+    // Update URL with new layout
+    updateShareableUrl(currentColSizes, currentRowSizes);
 
     // Remove highlight from divider
     const refs = type === "col" ? colHandleRefs : rowHandleRefs;
@@ -261,7 +302,7 @@ export default function Viewer() {
 
     dragInfo.current = null;
     setIsDragging(false);
-  }, [effectiveColSizes, effectiveRowSizes]);
+  }, [effectiveColSizes, effectiveRowSizes, updateShareableUrl]);
 
   // Setup global mouse events
   useEffect(() => {
@@ -284,6 +325,8 @@ export default function Viewer() {
       gridRef.current.style.gridTemplateColumns = "";
       gridRef.current.style.gridTemplateRows = "";
     }
+    // Update URL without custom sizes
+    updateShareableUrl([], []);
   };
 
   // Generate grid template strings

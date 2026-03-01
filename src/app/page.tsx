@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useStreams } from "@/lib/stream-context";
 import { useRouter } from "next/navigation";
+import { extractVideoId, encodeStreamData } from "@/lib/share-utils";
 
 export default function Home() {
   const { streamCount, setStreamCount, streamUrls, setStreamUrls } = useStreams();
@@ -34,22 +35,6 @@ export default function Home() {
     setTempUrls(newUrls);
   };
 
-  const extractVideoId = (url: string): string | null => {
-    // Handle various YouTube URL formats
-    const patterns = [
-      /(?:youtube\.com\/live\/)([a-zA-Z0-9_-]+)/,
-      /(?:youtube\.com\/watch\?v=)([a-zA-Z0-9_-]+)/,
-      /(?:youtu\.be\/)([a-zA-Z0-9_-]+)/,
-      /(?:youtube\.com\/embed\/)([a-zA-Z0-9_-]+)/,
-    ];
-
-    for (const pattern of patterns) {
-      const match = url.match(pattern);
-      if (match) return match[1];
-    }
-    return null;
-  };
-
   const handleStartStreams = () => {
     // Validate and extract video IDs
     const validUrls = tempUrls.filter((url) => url.trim() !== "");
@@ -58,8 +43,19 @@ export default function Home() {
       return;
     }
 
-    // Check if all URLs have valid video IDs
-    const invalidUrls = validUrls.filter((url) => !extractVideoId(url));
+    // Extract video IDs preserving order
+    const videoIds: string[] = [];
+    const invalidUrls: string[] = [];
+    
+    for (const url of validUrls) {
+      const videoId = extractVideoId(url);
+      if (videoId) {
+        videoIds.push(videoId);
+      } else {
+        invalidUrls.push(url);
+      }
+    }
+    
     if (invalidUrls.length > 0) {
       alert(`Invalid YouTube URL(s): ${invalidUrls.join(", ")}`);
       return;
@@ -69,8 +65,16 @@ export default function Home() {
     setStreamCount(tempCount);
     setStreamUrls(tempUrls);
 
-    // Navigate to viewer
-    router.push("/viewer");
+    // Encode stream data for sharing
+    const streamData = {
+      videoIds,
+      colSizes: [],
+      rowSizes: [],
+    };
+    const encoded = encodeStreamData(streamData);
+
+    // Navigate to viewer with encoded data
+    router.push(`/viewer?data=${encoded}`);
   };
 
   return (
