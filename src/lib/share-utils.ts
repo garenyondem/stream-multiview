@@ -122,7 +122,15 @@ export function extractVideoId(url: string): string | null {
  * Compress stream data using zlib and encode as base91
  */
 export function encodeStreamData(data: StreamData): string {
-  const jsonString = JSON.stringify(data);
+  // Sanitize data to remove undefined values and ensure proper array lengths
+  const sanitized: StreamData = {
+    videoIds: data.videoIds.filter((id): id is string => id !== undefined && id !== null),
+    colSizes: (data.colSizes || []).filter((s): s is number => s !== undefined && !isNaN(s)),
+    rowSizes: (data.rowSizes || []).filter((s): s is number => s !== undefined && !isNaN(s)),
+    layout: data.layout ?? "grid",
+    stageIndex: data.stageIndex ?? 0,
+  };
+  const jsonString = JSON.stringify(sanitized);
   const compressed = deflate(jsonString, { level: 9 });
   return encodeBase91(compressed);
 }

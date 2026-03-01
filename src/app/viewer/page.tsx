@@ -193,16 +193,22 @@ export default function Viewer() {
   ) => {
     const videoIds = streamUrls
       .map(url => extractVideoId(url))
-      .filter((id): id is string => id !== null);
+      .filter((id): id is string => id !== null && id !== undefined);
     
     if (videoIds.length === 0) return;
     
+    // Ensure sizes are valid numbers and filter out undefined/NaN
+    const cleanColSizes = (currentColSizes || [])
+      .filter((s): s is number => s !== undefined && !isNaN(s) && s > 0);
+    const cleanRowSizes = (currentRowSizes || [])
+      .filter((s): s is number => s !== undefined && !isNaN(s) && s > 0);
+    
     const streamData = {
       videoIds,
-      colSizes: currentColSizes,
-      rowSizes: currentRowSizes,
-      layout: currentLayout,
-      stageIndex: currentStageIndex,
+      colSizes: cleanColSizes,
+      rowSizes: cleanRowSizes,
+      layout: currentLayout ?? "grid",
+      stageIndex: currentStageIndex ?? 0,
     };
     
     const encoded = encodeStreamData(streamData);
