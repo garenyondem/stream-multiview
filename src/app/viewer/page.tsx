@@ -601,12 +601,21 @@ export default function Viewer() {
             {Array.from({ length: gridCols - 1 }, (_, i) => {
               const leftPercent = getDividerPosition(effectiveColSizes, i);
               
+              // In stage mode, vertical dividers should only span the bottom grid area
+              const isStageMode = layout === "stage";
+              const firstRowHeightPercent = isStageMode && effectiveRowSizes.length > 0
+                ? (effectiveRowSizes[0] / effectiveRowSizes.reduce((a, b) => a + b, 0)) * 100
+                : 0;
+              
               return (
                 <div
                   key={`v-${i}`}
                   ref={el => { colHandleRefs.current[i] = el; }}
-                  className="absolute top-0 bottom-0 w-6 -ml-3 cursor-col-resize pointer-events-auto group z-30 transition-none"
-                  style={{ left: `${leftPercent}%` }}
+                  className="absolute bottom-0 w-6 -ml-3 cursor-col-resize pointer-events-auto group z-30 transition-none"
+                  style={{ 
+                    left: `${leftPercent}%`,
+                    top: isStageMode ? `${firstRowHeightPercent}%` : '0%',
+                  }}
                   onMouseDown={(e) => handleResizeStart("col", i, e)}
                   title="Drag to resize"
                 >
@@ -697,7 +706,7 @@ export default function Viewer() {
                   {layout === "stage" && !isStage && isActive && (
                     <button
                       onClick={() => moveToStage(originalIndex)}
-                      className="text-[10px] px-1.5 py-0.5 bg-purple-600/50 hover:bg-purple-600/70 text-purple-200 rounded transition-colors"
+                      className="text-[10px] px-1.5 py-0.5 bg-purple-600/50 hover:bg-purple-600 text-purple-200 rounded transition-all opacity-50 hover:opacity-100"
                       title="Move to stage"
                     >
                       → Stage
