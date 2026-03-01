@@ -25,6 +25,8 @@ A live stream monitoring application that allows users to watch up to 12 live st
 - [x] **NEW**: Fixed vertical separators in stage mode - no longer spill into stage area
 - [x] **NEW**: "→ Stage" button now fades in/out (50% → 100% opacity on hover)
 - [x] **NEW**: Reset Layout button now respects current mode (stage vs grid)
+- [x] **NEW**: Stream label overlay now transparent - removed black background
+- [x] **NEW**: "→ Stage" button now fully transparent with text shadow for visibility
 
 ## Current Structure
 
@@ -128,3 +130,4 @@ The application is fully functional. Next steps depend on user requirements:
 | 2026-03-01 | Fixed vertical separators in stage mode - no longer spill into stage area |
 | 2026-03-01 | Made "→ Stage" button fade in/out (50% → 100% opacity) on hover |
 | 2026-03-01 | Updated reset layout button to respect current mode (stage vs grid) |
+| 2026-03-01 | Made stream label and "→ Stage" button fully transparent with text shadows |
