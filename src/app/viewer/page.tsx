@@ -34,6 +34,7 @@ export default function Viewer() {
   const mounted = useMounted();
   const gridRef = useRef<HTMLDivElement>(null);
   const iframeRefs = useRef<(HTMLIFrameElement | null)[]>([]);
+  const hasRestored = useRef(false);
 
   // Use lazy state initialization to read URL params once
   // All values have safe defaults
@@ -61,10 +62,12 @@ export default function Viewer() {
 
   // Restore streams from shared data once on mount
   useEffect(() => {
+    if (hasRestored.current || !mounted) return;
+    
     const shared = parseSharedDataFromUrl();
     const hasSharedData = shared.videoIds.length > 0;
 
-    if (hasSharedData && mounted && streamUrls.every(url => url === "")) {
+    if (hasSharedData) {
       const restoredUrls = shared.videoIds.map(
         (id: string) => `https://youtube.com/embed/${id}`
       );
@@ -75,8 +78,9 @@ export default function Viewer() {
       // Restore column and row sizes from shared data
       if (shared.colSizes.length > 0) setColSizes(shared.colSizes);
       if (shared.rowSizes.length > 0) setRowSizes(shared.rowSizes);
+      hasRestored.current = true;
     }
-  }, [mounted, setStreamUrls, setStreamCount, streamUrls]);
+  }, [mounted, setStreamUrls, setStreamCount, setColSizes, setRowSizes]);
 
   // Redirect if no streams configured and no shared data
   useEffect(() => {
