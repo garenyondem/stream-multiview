@@ -18,11 +18,13 @@ function useMounted() {
 }
 
 // Parse shared data from URL on first render (avoids useSearchParams issues)
-function parseSharedDataFromUrl(): StreamData | null {
-  if (typeof window === "undefined") return null;
+// Always returns valid StreamData with defaults
+function parseSharedDataFromUrl(): StreamData {
+  if (typeof window === "undefined") {
+    return { videoIds: [], colSizes: [], rowSizes: [], layout: "grid", stageIndex: 0 };
+  }
   const params = new URLSearchParams(window.location.search);
-  const encodedData = params.get("data");
-  if (!encodedData) return null;
+  const encodedData = params.get("data") || "";
   return decodeStreamData(encodedData);
 }
 
@@ -34,21 +36,24 @@ export default function Viewer() {
   const iframeRefs = useRef<(HTMLIFrameElement | null)[]>([]);
 
   // Use lazy state initialization to read URL params once
+  // All values have safe defaults
   const [colSizes, setColSizes] = useState<number[]>(() => {
     const shared = parseSharedDataFromUrl();
-    return shared?.colSizes ?? [];
+    return Array.isArray(shared.colSizes) ? shared.colSizes : [];
   });
   const [rowSizes, setRowSizes] = useState<number[]>(() => {
     const shared = parseSharedDataFromUrl();
-    return shared?.rowSizes ?? [];
+    return Array.isArray(shared.rowSizes) ? shared.rowSizes : [];
   });
   const [layout, setLayout] = useState<LayoutType>(() => {
     const shared = parseSharedDataFromUrl();
-    return shared?.layout ?? "grid";
+    return shared.layout === "stage" ? "stage" : "grid";
   });
   const [stageIndex, setStageIndex] = useState<number>(() => {
     const shared = parseSharedDataFromUrl();
-    return shared?.stageIndex ?? 0;
+    return typeof shared.stageIndex === "number" && !isNaN(shared.stageIndex)
+      ? Math.max(0, shared.stageIndex)
+      : 0;
   });
   const [showShareDialog, setShowShareDialog] = useState(false);
   const [showLayoutMenu, setShowLayoutMenu] = useState(false);
@@ -57,14 +62,16 @@ export default function Viewer() {
   // Restore streams from shared data once on mount
   useEffect(() => {
     const shared = parseSharedDataFromUrl();
-    if (shared && mounted && streamUrls.every(url => url === "")) {
+    const hasSharedData = shared.videoIds.length > 0;
+    
+    if (hasSharedData && mounted && streamUrls.every(url => url === "")) {
       const restoredUrls = shared.videoIds.map(
         (id: string) => `https://youtube.com/embed/${id}`
       );
       setStreamUrls(restoredUrls);
       setStreamCount(restoredUrls.length);
-      setLayout(shared.layout ?? "grid");
-      setStageIndex(shared.stageIndex ?? 0);
+      setLayout(shared.layout);
+      setStageIndex(shared.stageIndex);
     }
   }, [mounted, setStreamUrls, setStreamCount, streamUrls]);
 
@@ -78,8 +85,8 @@ export default function Viewer() {
   }, [mounted, streamUrls, router]);
 
   // Calculate number of active streams
-  const activeUrls = streamUrls.filter((url) => url.trim() !== "");
-  const activeCount = activeUrls.length || streamCount;
+  const activeUrls = streamUrls.filter((url) => typeof url === "string" && url.trim() !== "");
+  const activeCount = Math.max(activeUrls.length, streamCount || 0);
 
   // Calculate optimal grid dimensions based on count (for bottom row in stage mode)
   const getBottomGridDimensions = (count: number): { cols: number; rows: number } => {
@@ -111,20 +118,36 @@ export default function Viewer() {
   }, [activeCount, layout]);
 
   // Get effective sizes (padded with 1s if needed)
+  // Always returns valid arrays with positive numbers
   const effectiveColSizes = useMemo(() => {
-    return colSizes.length >= gridCols ? colSizes.slice(0, gridCols) : [...colSizes, ...Array(gridCols - colSizes.length).fill(1)];
+    const safeGridCols = Math.max(1, gridCols || 1);
+    const safeColSizes = Array.isArray(colSizes) ? colSizes : [];
+    const validSizes = safeColSizes.filter(s => typeof s === "number" && !isNaN(s) && s > 0);
+    
+    if (validSizes.length >= safeGridCols) {
+      return validSizes.slice(0, safeGridCols);
+    }
+    return [...validSizes, ...Array(safeGridCols - validSizes.length).fill(1)];
   }, [colSizes, gridCols]);
 
   const effectiveRowSizes = useMemo(() => {
+    const safeGridRows = Math.max(1, gridRows || 1);
+    const safeRowSizes = Array.isArray(rowSizes) ? rowSizes : [];
+    const validSizes = safeRowSizes.filter(s => typeof s === "number" && !isNaN(s) && s > 0);
+    
     if (layout === "stage") {
       // For stage layout: first row is stage (2x), bottom rows are equal
-      const bottomRowCount = gridRows - 1;
+      const bottomRowCount = safeGridRows - 1;
       if (bottomRowCount <= 0) return [3];
-      const bottomSize = rowSizes.length > 1 ? rowSizes.slice(1) : Array(bottomRowCount).fill(1);
-      const stageSize = rowSizes.length > 0 ? rowSizes[0] : 2;
-      return [stageSize, ...bottomSize].slice(0, gridRows);
+      const bottomSize = validSizes.length > 1 ? validSizes.slice(1) : Array(bottomRowCount).fill(1);
+      const stageSize = validSizes.length > 0 ? validSizes[0] : 2;
+      return [stageSize, ...bottomSize].slice(0, safeGridRows);
     }
-    return rowSizes.length >= gridRows ? rowSizes.slice(0, gridRows) : [...rowSizes, ...Array(gridRows - rowSizes.length).fill(1)];
+    
+    if (validSizes.length >= safeGridRows) {
+      return validSizes.slice(0, safeGridRows);
+    }
+    return [...validSizes, ...Array(safeGridRows - validSizes.length).fill(1)];
   }, [rowSizes, gridRows, layout]);
 
   // Drag state - minimal React state, mostly refs for performance
@@ -157,8 +180,9 @@ export default function Viewer() {
   const handleRefresh = () => {
     // Reload all iframes by resetting their src
     iframeRefs.current.forEach((iframe, index) => {
-      if (iframe && streamUrls[index]?.trim()) {
-        const videoId = extractVideoId(streamUrls[index]);
+      const url = streamUrls[index];
+      if (iframe && typeof url === "string" && url.trim()) {
+        const videoId = extractVideoId(url);
         if (videoId) {
           iframe.src = getEmbedUrl(videoId);
         }
@@ -186,29 +210,38 @@ export default function Viewer() {
 
   // Update URL with current layout for sharing
   const updateShareableUrl = useCallback((
-    currentColSizes: number[], 
+    currentColSizes: number[],
     currentRowSizes: number[],
     currentLayout: LayoutType = layout,
     currentStageIndex: number = stageIndex
   ) => {
-    const videoIds = streamUrls
+    // Ensure streamUrls is an array
+    const safeStreamUrls = Array.isArray(streamUrls) ? streamUrls : [];
+    
+    // Extract video IDs with validation
+    const videoIds = safeStreamUrls
       .map(url => extractVideoId(url))
-      .filter((id): id is string => id !== null && id !== undefined);
+      .filter(id => id.length > 0);
     
     if (videoIds.length === 0) return;
     
-    // Ensure sizes are valid numbers and filter out undefined/NaN
-    const cleanColSizes = (currentColSizes || [])
-      .filter((s): s is number => s !== undefined && !isNaN(s) && s > 0);
-    const cleanRowSizes = (currentRowSizes || [])
-      .filter((s): s is number => s !== undefined && !isNaN(s) && s > 0);
+    // Ensure sizes are valid arrays with positive numbers
+    const safeColSizes = Array.isArray(currentColSizes) ? currentColSizes : [];
+    const safeRowSizes = Array.isArray(currentRowSizes) ? currentRowSizes : [];
     
-    const streamData = {
+    const cleanColSizes = safeColSizes
+      .filter((s): s is number => typeof s === "number" && !isNaN(s) && s > 0);
+    const cleanRowSizes = safeRowSizes
+      .filter((s): s is number => typeof s === "number" && !isNaN(s) && s > 0);
+    
+    const streamData: StreamData = {
       videoIds,
       colSizes: cleanColSizes,
       rowSizes: cleanRowSizes,
-      layout: currentLayout ?? "grid",
-      stageIndex: currentStageIndex ?? 0,
+      layout: currentLayout === "stage" ? "stage" : "grid",
+      stageIndex: typeof currentStageIndex === "number" && !isNaN(currentStageIndex)
+        ? Math.max(0, currentStageIndex)
+        : 0,
     };
     
     const encoded = encodeStreamData(streamData);
@@ -219,9 +252,15 @@ export default function Viewer() {
   }, [streamUrls, layout, stageIndex]);
 
   // Calculate divider position as percentage
+  // sizes array is guaranteed to have valid positive numbers
   const getDividerPosition = useCallback((sizes: number[], index: number): number => {
-    const cumulativeFraction = sizes.slice(0, index + 1).reduce((a, b) => a + b, 0);
-    const totalFraction = sizes.reduce((a, b) => a + b, 0);
+    const safeSizes = Array.isArray(sizes) ? sizes : [1];
+    const safeIndex = Math.max(0, Math.min(index, safeSizes.length - 1));
+    
+    const cumulativeFraction = safeSizes.slice(0, safeIndex + 1).reduce((a, b) => a + (b || 1), 0);
+    const totalFraction = safeSizes.reduce((a, b) => a + (b || 1), 0);
+    
+    if (totalFraction <= 0) return 50;
     return (cumulativeFraction / totalFraction) * 100;
   }, []);
 
@@ -429,15 +468,28 @@ export default function Viewer() {
   const gridTemplateRows = effectiveRowSizes.map(s => `${s}fr`).join(" ");
 
   // Get displayed streams based on layout
-  const getDisplayedStreams = () => {
+  // Always returns array with valid stream items
+  const getDisplayedStreams = (): Array<{ url: string; index: number }> => {
+    const safeStreamUrls = Array.isArray(streamUrls) ? streamUrls : [];
+    const safeActiveCount = Math.max(0, activeCount || 0);
+    const safeStageIndex = Math.max(0, Math.min(stageIndex, safeActiveCount - 1));
+    
     if (layout === "grid") {
-      return streamUrls.slice(0, activeCount).map((url, index) => ({ url, index }));
+      return safeStreamUrls
+        .slice(0, safeActiveCount)
+        .map((url, index) => ({ url: url || "", index }));
     }
+    
     // Stage layout: stage stream first, then remaining streams
-    const allStreams = streamUrls.slice(0, activeCount).map((url, index) => ({ url, index }));
-    const stageStream = allStreams[stageIndex];
-    const otherStreams = allStreams.filter((_, i) => i !== stageIndex);
-    return [stageStream, ...otherStreams].filter(Boolean);
+    const allStreams = safeStreamUrls
+      .slice(0, safeActiveCount)
+      .map((url, index) => ({ url: url || "", index }));
+    
+    if (allStreams.length === 0) return [];
+    
+    const stageStream = allStreams[safeStageIndex] || allStreams[0];
+    const otherStreams = allStreams.filter((_, i) => i !== safeStageIndex);
+    return [stageStream, ...otherStreams];
   };
 
   // Check if an index is the stage position
@@ -447,12 +499,19 @@ export default function Viewer() {
 
   // Get original index from display position
   const getOriginalIndex = (displayIndex: number): number => {
-    if (layout === "grid") return displayIndex;
-    if (displayIndex === 0) return stageIndex;
+    const safeDisplayIndex = Math.max(0, displayIndex);
+    const safeActiveCount = Math.max(0, activeCount || 0);
+    const safeStageIndex = Math.max(0, Math.min(stageIndex, safeActiveCount - 1));
+    
+    if (layout === "grid") return safeDisplayIndex;
+    if (safeDisplayIndex === 0) return safeStageIndex;
+    
     // Map display index back to original index
-    const allIndices = Array.from({ length: activeCount }, (_, i) => i);
-    const otherIndices = allIndices.filter(i => i !== stageIndex);
-    return otherIndices[displayIndex - 1];
+    const allIndices = Array.from({ length: safeActiveCount }, (_, i) => i);
+    const otherIndices = allIndices.filter(i => i !== safeStageIndex);
+    const resultIndex = otherIndices[safeDisplayIndex - 1];
+    
+    return typeof resultIndex === "number" ? resultIndex : safeDisplayIndex;
   };
 
   if (!mounted) {
@@ -690,9 +749,9 @@ export default function Viewer() {
         >
           {displayedStreams.map((streamItem, displayIndex) => {
             const originalIndex = getOriginalIndex(displayIndex);
-            const url = streamItem.url;
+            const url = streamItem?.url || "";
             const videoId = extractVideoId(url);
-            const isActive = url.trim() !== "" && videoId;
+            const isActive = url.trim() !== "" && videoId.length > 0;
             const isStage = isStagePosition(displayIndex);
 
             return (
@@ -707,8 +766,12 @@ export default function Viewer() {
               >
                 {isActive ? (
                   <iframe
-                    ref={el => { iframeRefs.current[originalIndex] = el; }}
-                    src={getEmbedUrl(videoId!)}
+                    ref={el => {
+                      if (originalIndex >= 0) {
+                        iframeRefs.current[originalIndex] = el;
+                      }
+                    }}
+                    src={getEmbedUrl(videoId)}
                     title={`Stream ${originalIndex + 1}`}
                     className="w-full h-full"
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"

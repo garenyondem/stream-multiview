@@ -4,8 +4,8 @@ export interface StreamData {
   videoIds: string[];
   colSizes: number[];
   rowSizes: number[];
-  layout?: "grid" | "stage";
-  stageIndex?: number;
+  layout: "grid" | "stage";
+  stageIndex: number;
 }
 
 // Base91 character set - 91 URL-safe characters
@@ -102,8 +102,11 @@ function decodeBase91(str: string): Uint8Array | null {
 
 /**
  * Extract video ID from various YouTube URL formats
+ * Returns empty string if no valid ID found (never null)
  */
-export function extractVideoId(url: string): string | null {
+export function extractVideoId(url: string): string {
+  if (!url || typeof url !== "string") return "";
+  
   const patterns = [
     /(?:youtube\.com\/live\/)([a-zA-Z0-9_-]+)/,
     /(?:youtube\.com\/watch\?v=)([a-zA-Z0-9_-]+)/,
@@ -113,23 +116,39 @@ export function extractVideoId(url: string): string | null {
 
   for (const pattern of patterns) {
     const match = url.match(pattern);
-    if (match) return match[1];
+    if (match && match[1]) return match[1];
   }
-  return null;
+  return "";
 }
 
 /**
  * Compress stream data using zlib and encode as base91
  */
 export function encodeStreamData(data: StreamData): string {
-  // Sanitize data to remove undefined values and ensure proper array lengths
+  // Ensure all values have defaults - never undefined
+  const safeVideoIds = Array.isArray(data.videoIds) ? data.videoIds : [];
+  const safeColSizes = Array.isArray(data.colSizes) ? data.colSizes : [];
+  const safeRowSizes = Array.isArray(data.rowSizes) ? data.rowSizes : [];
+  const safeLayout = data.layout === "stage" ? "stage" : "grid";
+  const safeStageIndex = typeof data.stageIndex === "number" && !isNaN(data.stageIndex)
+    ? Math.max(0, data.stageIndex)
+    : 0;
+  
+  // Sanitize arrays to remove invalid values
   const sanitized: StreamData = {
-    videoIds: data.videoIds.filter((id): id is string => id !== undefined && id !== null),
-    colSizes: (data.colSizes || []).filter((s): s is number => s !== undefined && !isNaN(s)),
-    rowSizes: (data.rowSizes || []).filter((s): s is number => s !== undefined && !isNaN(s)),
-    layout: data.layout ?? "grid",
-    stageIndex: data.stageIndex ?? 0,
+    videoIds: safeVideoIds.filter((id): id is string =>
+      typeof id === "string" && id.length > 0
+    ),
+    colSizes: safeColSizes.filter((s): s is number =>
+      typeof s === "number" && !isNaN(s) && s > 0
+    ),
+    rowSizes: safeRowSizes.filter((s): s is number =>
+      typeof s === "number" && !isNaN(s) && s > 0
+    ),
+    layout: safeLayout,
+    stageIndex: safeStageIndex,
   };
+  
   const jsonString = JSON.stringify(sanitized);
   const compressed = deflate(jsonString, { level: 9 });
   return encodeBase91(compressed);
@@ -137,15 +156,43 @@ export function encodeStreamData(data: StreamData): string {
 
 /**
  * Decode base91 and decompress using zlib
+ * Always returns a valid StreamData with defaults, never null
  */
-export function decodeStreamData(encoded: string): StreamData | null {
+export function decodeStreamData(encoded: string): StreamData {
+  const defaultData: StreamData = {
+    videoIds: [],
+    colSizes: [],
+    rowSizes: [],
+    layout: "grid",
+    stageIndex: 0,
+  };
+  
   try {
+    if (!encoded || typeof encoded !== "string") return defaultData;
+    
     const compressed = decodeBase91(encoded);
-    if (!compressed) return null;
+    if (!compressed) return defaultData;
 
     const decompressed = inflate(compressed, { to: "string" });
-    return JSON.parse(decompressed) as StreamData;
+    const parsed = JSON.parse(decompressed);
+    
+    // Ensure all fields have valid defaults
+    return {
+      videoIds: Array.isArray(parsed.videoIds)
+        ? parsed.videoIds.filter((id: unknown): id is string => typeof id === "string" && id.length > 0)
+        : [],
+      colSizes: Array.isArray(parsed.colSizes)
+        ? parsed.colSizes.filter((s: unknown): s is number => typeof s === "number" && !isNaN(s) && s > 0)
+        : [],
+      rowSizes: Array.isArray(parsed.rowSizes)
+        ? parsed.rowSizes.filter((s: unknown): s is number => typeof s === "number" && !isNaN(s) && s > 0)
+        : [],
+      layout: parsed.layout === "stage" ? "stage" : "grid",
+      stageIndex: typeof parsed.stageIndex === "number" && !isNaN(parsed.stageIndex)
+        ? Math.max(0, parsed.stageIndex)
+        : 0,
+    };
   } catch {
-    return null;
+    return defaultData;
   }
 }

@@ -70,6 +70,8 @@ export default function Home() {
       videoIds,
       colSizes: [],
       rowSizes: [],
+      layout: "grid" as const,
+      stageIndex: 0,
     };
     const encoded = encodeStreamData(streamData);
 
