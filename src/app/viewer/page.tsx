@@ -63,7 +63,7 @@ export default function Viewer() {
   useEffect(() => {
     const shared = parseSharedDataFromUrl();
     const hasSharedData = shared.videoIds.length > 0;
-    
+
     if (hasSharedData && mounted && streamUrls.every(url => url === "")) {
       const restoredUrls = shared.videoIds.map(
         (id: string) => `https://youtube.com/embed/${id}`
@@ -72,6 +72,9 @@ export default function Viewer() {
       setStreamCount(restoredUrls.length);
       setLayout(shared.layout);
       setStageIndex(shared.stageIndex);
+      // Restore column and row sizes from shared data
+      if (shared.colSizes.length > 0) setColSizes(shared.colSizes);
+      if (shared.rowSizes.length > 0) setRowSizes(shared.rowSizes);
     }
   }, [mounted, setStreamUrls, setStreamCount, streamUrls]);
 
