@@ -8,105 +8,13 @@ export interface StreamData {
   stageIndex: number;
 }
 
-// Base91 character set - 91 URL-safe characters
-// Excludes: ' " \ space < > { } | \ ` ^ and control chars
-const BASE91_CHARS =
-  "ABCDEFGHIJKLMNOPQRSTUVWXYZ" +
-  "abcdefghijklmnopqrstuvwxyz" +
-  "0123456789" +
-  "!#$%&()*+,-.:;<=>?@[]^_~";
-
-const BASE91_LEN = 91;
-
-/**
- * Encode bytes to base91 string
- */
-function encodeBase91(bytes: Uint8Array): string {
-  let result = "";
-  let b = 0;
-  let n = 0;
-
-  for (let i = 0; i < bytes.length; i++) {
-    b |= bytes[i] << n;
-    n += 8;
-
-    if (n > 13) {
-      let v = b & 8191;
-      if (v > 88) {
-        b >>= 13;
-        n -= 13;
-      } else {
-        v = b & 16383;
-        b >>= 14;
-        n -= 14;
-      }
-      result += BASE91_CHARS[v % BASE91_LEN];
-      result += BASE91_CHARS[(v / BASE91_LEN) | 0];
-    }
-  }
-
-  if (n > 0) {
-    result += BASE91_CHARS[b % BASE91_LEN];
-    if (n > 7 || b > 90) {
-      result += BASE91_CHARS[(b / BASE91_LEN) | 0];
-    }
-  }
-
-  return result;
-}
-
-/**
- * Decode base91 string to bytes
- */
-function decodeBase91(str: string): Uint8Array | null {
-  try {
-    const bytes: number[] = [];
-    let b = 0;
-    let n = 0;
-    let v = -1;
-
-    for (let i = 0; i < str.length; i++) {
-      const c = str[i];
-      const index = BASE91_CHARS.indexOf(c);
-
-      if (index === -1) {
-        return null; // Invalid character
-      }
-
-      if (v < 0) {
-        v = index;
-      } else {
-        v += index * BASE91_LEN;
-        b |= v << n;
-        n += (v & 8191) > 88 ? 13 : 14;
-
-        while (n > 7) {
-          bytes.push(b & 255);
-          b >>= 8;
-          n -= 8;
-        }
-
-        v = -1;
-      }
-    }
-
-    if (v >= 0) {
-      bytes.push((b | (v << n)) & 255);
-    }
-
-    return new Uint8Array(bytes);
-  } catch {
-    return null;
-  }
-}
-
 /**
  * Extract video ID from various YouTube URL formats
  * Returns empty string if no valid ID found (never null)
  */
 export function extractVideoId(url: string): string {
   if (!url || typeof url !== "string") return "";
-  
+
   const patterns = [
     /(?:youtube\.com\/live\/)([a-zA-Z0-9_-]+)/,
     /(?:youtube\.com\/watch\?v=)([a-zA-Z0-9_-]+)/,
@@ -122,7 +30,7 @@ export function extractVideoId(url: string): string {
 }
 
 /**
- * Compress stream data using zlib and encode as base91
+ * Compress stream data using zlib and encode as base64
  */
 export function encodeStreamData(data: StreamData): string {
   // Ensure all values have defaults - never undefined
@@ -133,7 +41,7 @@ export function encodeStreamData(data: StreamData): string {
   const safeStageIndex = typeof data.stageIndex === "number" && !isNaN(data.stageIndex)
     ? Math.max(0, data.stageIndex)
     : 0;
-  
+
   // Sanitize arrays to remove invalid values
   const sanitized: StreamData = {
     videoIds: safeVideoIds.filter((id): id is string =>
@@ -148,14 +56,19 @@ export function encodeStreamData(data: StreamData): string {
     layout: safeLayout,
     stageIndex: safeStageIndex,
   };
-  
+
   const jsonString = JSON.stringify(sanitized);
   const compressed = deflate(jsonString, { level: 9 });
-  return encodeBase91(compressed);
+
+  // Convert Uint8Array to base64 string
+  const binary = Array.from(compressed)
+    .map((b) => String.fromCharCode(b))
+    .join("");
+  return btoa(binary);
 }
 
 /**
- * Decode base91 and decompress using zlib
+ * Decode base64 and decompress using zlib
  * Always returns a valid StreamData with defaults, never null
  */
 export function decodeStreamData(encoded: string): StreamData {
@@ -166,16 +79,20 @@ export function decodeStreamData(encoded: string): StreamData {
     layout: "grid",
     stageIndex: 0,
   };
-  
+
   try {
     if (!encoded || typeof encoded !== "string") return defaultData;
-    
-    const compressed = decodeBase91(encoded);
-    if (!compressed) return defaultData;
+
+    // Decode base64 to binary string, then to Uint8Array
+    const binary = atob(encoded);
+    const compressed = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      compressed[i] = binary.charCodeAt(i);
+    }
 
     const decompressed = inflate(compressed, { to: "string" });
     const parsed = JSON.parse(decompressed);
-    
+
     // Ensure all fields have valid defaults
     return {
       videoIds: Array.isArray(parsed.videoIds)
