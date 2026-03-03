@@ -64,7 +64,10 @@ export function encodeStreamData(data: StreamData): string {
   const binary = Array.from(compressed)
     .map((b) => String.fromCharCode(b))
     .join("");
-  return btoa(binary);
+  const base64 = btoa(binary);
+
+  // Convert to URL-safe base64 (replace + with -, / with _, remove = padding)
+  return base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
 }
 
 /**
@@ -83,8 +86,15 @@ export function decodeStreamData(encoded: string): StreamData {
   try {
     if (!encoded || typeof encoded !== "string") return defaultData;
 
+    // Convert URL-safe base64 back to standard base64
+    let base64 = encoded.replace(/-/g, "+").replace(/_/g, "/");
+    // Add padding if needed
+    while (base64.length % 4 !== 0) {
+      base64 += "=";
+    }
+
     // Decode base64 to binary string, then to Uint8Array
-    const binary = atob(encoded);
+    const binary = atob(base64);
     const compressed = new Uint8Array(binary.length);
     for (let i = 0; i < binary.length; i++) {
       compressed[i] = binary.charCodeAt(i);
