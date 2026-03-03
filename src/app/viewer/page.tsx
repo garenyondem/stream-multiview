@@ -35,6 +35,8 @@ export default function Viewer() {
   const gridRef = useRef<HTMLDivElement>(null);
   const iframeRefs = useRef<(HTMLIFrameElement | null)[]>([]);
   const hasRestored = useRef(false);
+  const rafId = useRef<number | null>(null);
+  const pendingMouseEvent = useRef<MouseEvent | null>(null);
 
   // Use lazy state initialization to read URL params once
   // All values have safe defaults
@@ -163,6 +165,7 @@ export default function Viewer() {
     type: "col" | "row";
     index: number;
     startSizes: number[];
+    currentSizes: number[];
     gridRect: DOMRect;
     startClientPos: number;
   } | null>(null);
@@ -364,6 +367,7 @@ export default function Viewer() {
       type,
       index,
       startSizes: [...sizes],
+      currentSizes: [...sizes],
       gridRect: rect,
       startClientPos: clientPos,
     };
@@ -382,72 +386,102 @@ export default function Viewer() {
     }
   }, [effectiveColSizes, effectiveRowSizes]);
 
-  // Mouse move handler - uses refs only, no React state
-  const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (!dragInfo.current || !gridRef.current) return;
+
+  // Mouse move handler - uses RAF for smooth 60fps updates
+  const processMouseMove = useCallback(() => {
+    rafId.current = null;
+    const e = pendingMouseEvent.current;
+    if (!e || !dragInfo.current || !gridRef.current) return;
     
-    const { type, index, startSizes, gridRect, startClientPos } = dragInfo.current;
+    const { type, index, startSizes, gridRect } = dragInfo.current;
     const clientPos = type === "col" ? e.clientX : e.clientY;
     const totalSize = type === "col" ? gridRect.width : gridRect.height;
     
-    const delta = clientPos - startClientPos;
-    const deltaFraction = delta / (totalSize / startSizes.length);
+    // Calculate position as percentage of total grid size
+    const relativePos = clientPos - (type === "col" ? gridRect.left : gridRect.top);
+    const percentPos = Math.max(0, Math.min(100, (relativePos / totalSize) * 100));
+    
+    // Calculate cumulative percentage up to this divider
+    const sizesBefore = startSizes.slice(0, index);
+    const totalBeforeFrac = sizesBefore.reduce((a, b) => a + b, 0);
+    const totalFraction = startSizes.reduce((a, b) => a + b, 0);
+    const percentBefore = (totalBeforeFrac / totalFraction) * 100;
+    
+    // Calculate size for current and next cells based on divider position
+    const sizesAfter = startSizes.slice(index + 2);
+    const totalAfterFrac = sizesAfter.reduce((a, b) => a + b, 0);
+    const percentAfter = (totalAfterFrac / totalFraction) * 100;
+    
+    // Available space for these two cells
+    const availablePercent = 100 - percentBefore - percentAfter;
+    
+    // Calculate new sizes proportional to the divider position
+    const currentPercent = percentPos - percentBefore;
+    const nextPercent = availablePercent - currentPercent;
+    
+    // Convert back to fractions
+    const newCurrent = (currentPercent / availablePercent) * (startSizes[index] + startSizes[index + 1]);
+    const newNext = (nextPercent / availablePercent) * (startSizes[index] + startSizes[index + 1]);
+    
+    // Apply minimum constraint (10% each)
+    const minFraction = 0.1 * totalFraction;
+    let finalCurrent = newCurrent;
+    let finalNext = newNext;
+    
+    if (finalCurrent < minFraction) {
+      finalCurrent = minFraction;
+      finalNext = (startSizes[index] + startSizes[index + 1]) - minFraction;
+    }
+    if (finalNext < minFraction) {
+      finalNext = minFraction;
+      finalCurrent = (startSizes[index] + startSizes[index + 1]) - minFraction;
+    }
 
     const newSizes = [...startSizes];
-    const currentSize = startSizes[index];
-    const nextSize = startSizes[index + 1];
-
-    // Calculate new sizes with constraints (min 10% each)
-    let newCurrent = currentSize + deltaFraction;
-    let newNext = nextSize - deltaFraction;
-
-    const minSize = 0.1 * startSizes.length;
-    if (newCurrent < minSize) {
-      newNext -= minSize - newCurrent;
-      newCurrent = minSize;
-    }
-    if (newNext < minSize) {
-      newCurrent -= minSize - newNext;
-      newNext = minSize;
-    }
-
-    newSizes[index] = newCurrent;
-    newSizes[index + 1] = newNext;
+    newSizes[index] = finalCurrent;
+    newSizes[index + 1] = finalNext;
 
     // Apply immediately to DOM
     updateGridStyles(newSizes, type);
 
-    // Update divider visual position
-    const dividerPos = getDividerPosition(newSizes, index);
-    updateDividerPosition(type, index, dividerPos);
-  }, [updateGridStyles, getDividerPosition, updateDividerPosition]);
+    // Update divider visual position to follow mouse exactly
+    updateDividerPosition(type, index, percentPos);
+    
+    // Store current sizes for next frame
+    dragInfo.current.currentSizes = newSizes;
+  }, [updateGridStyles, updateDividerPosition]);
+
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    pendingMouseEvent.current = e;
+    if (!rafId.current) {
+      rafId.current = requestAnimationFrame(processMouseMove);
+    }
+  }, [processMouseMove]);
 
   // Mouse up handler - saves state once at the end
   const handleMouseUp = useCallback(() => {
+    // Cancel any pending RAF
+    if (rafId.current) {
+      cancelAnimationFrame(rafId.current);
+      rafId.current = null;
+    }
+    pendingMouseEvent.current = null;
+    
     if (!dragInfo.current) return;
 
-    const { type, index } = dragInfo.current;
+    const { type, index, currentSizes } = dragInfo.current;
 
-    // Get current sizes from grid style
-    let currentColSizes = effectiveColSizes;
-    let currentRowSizes = effectiveRowSizes;
-    
-    if (gridRef.current) {
-      const colTemplate = gridRef.current.style.gridTemplateColumns;
-      const rowTemplate = gridRef.current.style.gridTemplateRows;
-      
-      if (colTemplate) {
-        currentColSizes = colTemplate.split(" ").map(s => parseFloat(s));
-        setColSizes(currentColSizes);
-      }
-      if (rowTemplate) {
-        currentRowSizes = rowTemplate.split(" ").map(s => parseFloat(s));
-        setRowSizes(currentRowSizes);
-      }
+    // Use the currentSizes from dragInfo which was updated during drag
+    if (type === "col") {
+      setColSizes([...currentSizes]);
+    } else {
+      setRowSizes([...currentSizes]);
     }
 
     // Update URL with new layout
-    updateShareableUrl(currentColSizes, currentRowSizes, layout, stageIndex);
+    const finalColSizes = type === "col" ? [...currentSizes] : effectiveColSizes;
+    const finalRowSizes = type === "row" ? [...currentSizes] : effectiveRowSizes;
+    updateShareableUrl(finalColSizes, finalRowSizes, layout, stageIndex);
 
     // Remove highlight from divider
     const refs = type === "col" ? colHandleRefs : rowHandleRefs;
@@ -474,6 +508,11 @@ export default function Viewer() {
     return () => {
       document.removeEventListener("mousemove", handleMouseMove);
       document.removeEventListener("mouseup", handleMouseUp);
+      // Cancel any pending RAF on cleanup
+      if (rafId.current) {
+        cancelAnimationFrame(rafId.current);
+        rafId.current = null;
+      }
     };
   }, [isDragging, handleMouseMove, handleMouseUp]);
 
