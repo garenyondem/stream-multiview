@@ -200,16 +200,33 @@ export default function Viewer() {
   const switchLayout = (newLayout: LayoutType) => {
     setLayout(newLayout);
     setShowLayoutMenu(false);
-    // Refresh page to apply new layout with clean state
-    window.location.reload();
-    // Reset sizes when switching layouts
-    setColSizes([]);
-    setRowSizes([]);
+    
+    // Calculate new dimensions based on the new layout
+    const newGridDims = newLayout === "stage" 
+      ? (() => {
+          const bottomCount = activeCount - 1;
+          if (bottomCount <= 0) return { cols: 1, rows: 1 };
+          const dims = getBottomGridDimensions(bottomCount);
+          return { cols: dims.cols, rows: 1 + dims.rows };
+        })()
+      : getGridDimensions(activeCount);
+    
+    // Reset sizes for new layout
+    const newColSizes = Array(newGridDims.cols).fill(1);
+    const newRowSizes = newLayout === "stage" && newGridDims.rows > 1
+      ? [2, ...Array(newGridDims.rows - 1).fill(1)]
+      : Array(newGridDims.rows).fill(1);
+    
+    setColSizes(newColSizes);
+    setRowSizes(newRowSizes);
+    
+    // Immediately apply grid styles for the new layout
     if (gridRef.current) {
-      gridRef.current.style.gridTemplateColumns = "";
-      gridRef.current.style.gridTemplateRows = "";
+      gridRef.current.style.gridTemplateColumns = newColSizes.map(s => `${s}fr`).join(" ");
+      gridRef.current.style.gridTemplateRows = newRowSizes.map(s => `${s}fr`).join(" ");
     }
-    updateShareableUrl([], [], newLayout, stageIndex);
+    
+    updateShareableUrl(newColSizes, newRowSizes, newLayout, stageIndex);
   };
 
   const moveToStage = (index: number) => {
