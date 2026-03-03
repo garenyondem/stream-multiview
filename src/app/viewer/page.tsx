@@ -889,7 +889,7 @@ export default function Viewer() {
                   {layout === "stage" && !isStage && isActive && (
                     <button
                       onClick={() => moveToStage(originalIndex)}
-                      className="text-[10px] px-1.5 py-0.5 text-purple-300 hover:text-white transition-all opacity-50 hover:opacity-100 drop-shadow-lg"
+                      className="text-[10px] px-1.5 py-0.5 text-purple-300 hover:text-white transition-all opacity-[0.625] hover:opacity-100 drop-shadow-lg"
                       title="Move to stage"
                     >
                       → Stage
