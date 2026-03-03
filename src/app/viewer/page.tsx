@@ -200,6 +200,8 @@ export default function Viewer() {
   const switchLayout = (newLayout: LayoutType) => {
     setLayout(newLayout);
     setShowLayoutMenu(false);
+    // Refresh page to apply new layout with clean state
+    window.location.reload();
     // Reset sizes when switching layouts
     setColSizes([]);
     setRowSizes([]);
