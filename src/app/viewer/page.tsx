@@ -258,6 +258,30 @@ export default function Viewer() {
     window.history.replaceState(null, "", newUrl);
   }, [streamUrls, layout, stageIndex]);
 
+  // Update URL whenever colSizes or rowSizes change
+  // This ensures the shareable URL always reflects current divider positions
+  useEffect(() => {
+    if (!mounted || !hasRestored.current) return;
+    
+    const videoIds = streamUrls
+      .map(url => extractVideoId(url))
+      .filter(id => id.length > 0);
+    
+    if (videoIds.length === 0) return;
+    
+    const streamData: StreamData = {
+      videoIds,
+      colSizes: colSizes.filter((s): s is number => typeof s === "number" && !isNaN(s) && s > 0),
+      rowSizes: rowSizes.filter((s): s is number => typeof s === "number" && !isNaN(s) && s > 0),
+      layout,
+      stageIndex,
+    };
+    
+    const encoded = encodeStreamData(streamData);
+    const newUrl = `/viewer?data=${encoded}`;
+    window.history.replaceState(null, "", newUrl);
+  }, [colSizes, rowSizes, mounted, streamUrls, layout, stageIndex]);
+
   // Calculate divider position as percentage
   // sizes array is guaranteed to have valid positive numbers
   const getDividerPosition = useCallback((sizes: number[], index: number): number => {
