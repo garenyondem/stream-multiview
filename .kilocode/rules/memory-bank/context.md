@@ -31,6 +31,8 @@ A live stream monitoring application that allows users to watch up to 12 live st
 - [x] **NEW**: Fixed bug where "undefined" appeared in shareable URLs - now sanitizes data before encoding
 - [x] **NEW**: Added defensive coding throughout - no undefined values, always use defaults
 - [x] **NEW**: Fixed shareable URL restore - now properly restores colSizes and rowSizes from shared data
+- [x] **NEW**: Use URL-safe base64 encoding for shareable URLs to prevent corruption
+- [x] **NEW**: Made "→ Stage" button 25% more visible (62.5% opacity default)
 
 ## Current Structure
 
@@ -139,3 +141,5 @@ The application is fully functional. Next steps depend on user requirements:
 | 2026-03-01 | Fixed bug where "undefined" appeared in shareable URLs - now sanitizes data before encoding |
 | 2026-03-01 | Added defensive coding throughout - no undefined values, always use defaults |
 | 2026-03-02 | Fixed shareable URL restore - now properly restores colSizes and rowSizes from shared data |
+| 2026-03-03 | Use URL-safe base64 encoding for shareable URLs to prevent corruption |
+| 2026-03-03 | Made "→ Stage" button 25% more visible (62.5% opacity default) |
