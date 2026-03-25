@@ -33,6 +33,12 @@ Click images to view full size in a new tab.
 
 *Multi-stream viewer — watch up to 12 streams with draggable resize*
 
+<a href="https://github.com/user-attachments/assets/9d163576-cff1-4da0-a065-8e2a68ada0a7" target="_blank">
+  <img src="https://github.com/user-attachments/assets/9d163576-cff1-4da0-a065-8e2a68ada0a7" alt="Multi-Stream Viewer Stage Mode" width="600">
+</a>
+
+*Stage layout — moce any stream to stage for larger view*
+
 ## 🚀 Tech Stack
 
 | Technology | Purpose |
