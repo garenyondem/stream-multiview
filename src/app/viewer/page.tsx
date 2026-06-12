@@ -1,21 +1,11 @@
-/* eslint-disable react-hooks/set-state-in-effect, react-hooks/preserve-manual-memoization */
 "use client";
 
 import { useStreams } from "@/lib/stream-context";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, useSyncExternalStore, useCallback, useMemo } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { extractVideoId, decodeStreamData, encodeStreamData, StreamData } from "@/lib/share-utils";
 
 type LayoutType = "grid" | "stage";
-
-// Hook to track mounted state without causing cascading renders
-function useMounted() {
-  return useSyncExternalStore(
-    () => () => {},
-    () => true,
-    () => false
-  );
-}
 
 // Parse shared data from URL on first render (avoids useSearchParams issues)
 // Always returns valid StreamData with defaults
@@ -31,58 +21,61 @@ function parseSharedDataFromUrl(): StreamData {
 export default function Viewer() {
   const { streamCount, streamUrls, setStreamUrls, setStreamCount } = useStreams();
   const router = useRouter();
-  const mounted = useMounted();
+  const [mounted, setMounted] = useState(false);
   const gridRef = useRef<HTMLDivElement>(null);
   const iframeRefs = useRef<(HTMLIFrameElement | null)[]>([]);
   const hasRestored = useRef(false);
   const rafId = useRef<number | null>(null);
   const pendingMouseEvent = useRef<MouseEvent | null>(null);
 
-  // Use lazy state initialization to read URL params once
-  // All values have safe defaults
-  const [colSizes, setColSizes] = useState<number[]>(() => {
-    const shared = parseSharedDataFromUrl();
-    return Array.isArray(shared.colSizes) ? shared.colSizes : [];
-  });
-  const [rowSizes, setRowSizes] = useState<number[]>(() => {
-    const shared = parseSharedDataFromUrl();
-    return Array.isArray(shared.rowSizes) ? shared.rowSizes : [];
-  });
-  const [layout, setLayout] = useState<LayoutType>(() => {
-    const shared = parseSharedDataFromUrl();
-    return shared.layout === "stage" ? "stage" : "grid";
-  });
-  const [stageIndex, setStageIndex] = useState<number>(() => {
-    const shared = parseSharedDataFromUrl();
-    return typeof shared.stageIndex === "number" && !isNaN(shared.stageIndex)
-      ? Math.max(0, shared.stageIndex)
-      : 0;
-  });
+  const sharedData = useMemo(() => parseSharedDataFromUrl(), []);
+
+  const [colSizes, setColSizes] = useState<number[]>(() =>
+    sharedData.colSizes.length > 0 ? [...sharedData.colSizes] : []
+  );
+  const [rowSizes, setRowSizes] = useState<number[]>(() =>
+    sharedData.rowSizes.length > 0 ? [...sharedData.rowSizes] : []
+  );
+  const [layout, setLayout] = useState<LayoutType>(() =>
+    sharedData.layout === "stage" ? "stage" : "grid"
+  );
+  const [stageIndex, setStageIndex] = useState<number>(() =>
+    typeof sharedData.stageIndex === "number" && !isNaN(sharedData.stageIndex)
+      ? Math.max(0, sharedData.stageIndex)
+      : 0
+  );
   const [showShareDialog, setShowShareDialog] = useState(false);
   const [showLayoutMenu, setShowLayoutMenu] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  // Restore streams from shared data once on mount
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
-    if (hasRestored.current || !mounted) return;
-    
-    const shared = parseSharedDataFromUrl();
-    const hasSharedData = shared.videoIds.length > 0;
+    setMounted(true);
+  }, []);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  // Restore streams from shared data once on mount
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (hasRestored.current) return;
+
+    const hasSharedData = sharedData.videoIds.length > 0;
 
     if (hasSharedData) {
-      const restoredUrls = shared.videoIds.map(
+      const restoredUrls = sharedData.videoIds.map(
         (id: string) => `https://youtube.com/embed/${id}`
       );
       setStreamUrls(restoredUrls);
       setStreamCount(restoredUrls.length);
-      setLayout(shared.layout);
-      setStageIndex(shared.stageIndex);
-      // Restore column and row sizes from shared data
-      if (shared.colSizes.length > 0) setColSizes(shared.colSizes);
-      if (shared.rowSizes.length > 0) setRowSizes(shared.rowSizes);
-      hasRestored.current = true;
+      setLayout(sharedData.layout);
+      setStageIndex(sharedData.stageIndex);
+      if (sharedData.colSizes.length > 0) setColSizes(sharedData.colSizes);
+      if (sharedData.rowSizes.length > 0) setRowSizes(sharedData.rowSizes);
     }
-  }, [mounted, setStreamUrls, setStreamCount, setColSizes, setRowSizes]);
+
+    hasRestored.current = true;
+  }, [sharedData, setStreamUrls, setStreamCount, setColSizes, setRowSizes]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Redirect if no streams configured and no shared data
   useEffect(() => {
@@ -203,9 +196,8 @@ export default function Viewer() {
   const switchLayout = (newLayout: LayoutType) => {
     setLayout(newLayout);
     setShowLayoutMenu(false);
-    
-    // Calculate new dimensions based on the new layout
-    const newGridDims = newLayout === "stage" 
+
+    const newGridDims = newLayout === "stage"
       ? (() => {
           const bottomCount = activeCount - 1;
           if (bottomCount <= 0) return { cols: 1, rows: 1 };
@@ -213,84 +205,27 @@ export default function Viewer() {
           return { cols: dims.cols, rows: 1 + dims.rows };
         })()
       : getGridDimensions(activeCount);
-    
-    // Reset sizes for new layout
-    const newColSizes = Array(newGridDims.cols).fill(1);
-    const newRowSizes = newLayout === "stage" && newGridDims.rows > 1
-      ? [2, ...Array(newGridDims.rows - 1).fill(1)]
-      : Array(newGridDims.rows).fill(1);
-    
-    setColSizes(newColSizes);
-    setRowSizes(newRowSizes);
-    
-    // Immediately apply grid styles for the new layout
-    if (gridRef.current) {
-      gridRef.current.style.gridTemplateColumns = newColSizes.map(s => `${s}fr`).join(" ");
-      gridRef.current.style.gridTemplateRows = newRowSizes.map(s => `${s}fr`).join(" ");
-    }
-    
-    updateShareableUrl(newColSizes, newRowSizes, newLayout, stageIndex);
+
+    setColSizes(Array(newGridDims.cols).fill(1));
+    setRowSizes(
+      newLayout === "stage" && newGridDims.rows > 1
+        ? [2, ...Array(newGridDims.rows - 1).fill(1)]
+        : Array(newGridDims.rows).fill(1)
+    );
   };
 
   const moveToStage = (index: number) => {
     setStageIndex(index);
-    updateShareableUrl(colSizes, rowSizes, layout, index);
   };
 
-  // Update URL with current layout for sharing
-  const updateShareableUrl = useCallback((
-    currentColSizes: number[],
-    currentRowSizes: number[],
-    currentLayout: LayoutType = layout,
-    currentStageIndex: number = stageIndex
-  ) => {
-    // Ensure streamUrls is an array
+  const syncUrlToState = useCallback(() => {
     const safeStreamUrls = Array.isArray(streamUrls) ? streamUrls : [];
-    
-    // Extract video IDs with validation
     const videoIds = safeStreamUrls
       .map(url => extractVideoId(url))
       .filter(id => id.length > 0);
-    
-    if (videoIds.length === 0) return;
-    
-    // Ensure sizes are valid arrays with positive numbers
-    const safeColSizes = Array.isArray(currentColSizes) ? currentColSizes : [];
-    const safeRowSizes = Array.isArray(currentRowSizes) ? currentRowSizes : [];
-    
-    const cleanColSizes = safeColSizes
-      .filter((s): s is number => typeof s === "number" && !isNaN(s) && s > 0);
-    const cleanRowSizes = safeRowSizes
-      .filter((s): s is number => typeof s === "number" && !isNaN(s) && s > 0);
-    
-    const streamData: StreamData = {
-      videoIds,
-      colSizes: cleanColSizes,
-      rowSizes: cleanRowSizes,
-      layout: currentLayout === "stage" ? "stage" : "grid",
-      stageIndex: typeof currentStageIndex === "number" && !isNaN(currentStageIndex)
-        ? Math.max(0, currentStageIndex)
-        : 0,
-    };
-    
-    const encoded = encodeStreamData(streamData);
-    const newUrl = `/viewer?data=${encoded}`;
-    
-    // Update URL without triggering navigation
-    window.history.replaceState(null, "", newUrl);
-  }, [streamUrls, layout, stageIndex]);
 
-  // Update URL whenever colSizes or rowSizes change
-  // This ensures the shareable URL always reflects current divider positions
-  useEffect(() => {
-    if (!mounted || !hasRestored.current) return;
-    
-    const videoIds = streamUrls
-      .map(url => extractVideoId(url))
-      .filter(id => id.length > 0);
-    
     if (videoIds.length === 0) return;
-    
+
     const streamData: StreamData = {
       videoIds,
       colSizes: colSizes.filter((s): s is number => typeof s === "number" && !isNaN(s) && s > 0),
@@ -298,11 +233,15 @@ export default function Viewer() {
       layout,
       stageIndex,
     };
-    
-    const encoded = encodeStreamData(streamData);
-    const newUrl = `/viewer?data=${encoded}`;
-    window.history.replaceState(null, "", newUrl);
-  }, [colSizes, rowSizes, mounted, streamUrls, layout, stageIndex]);
+
+    window.history.replaceState(null, "", `/viewer?data=${encodeStreamData(streamData)}`);
+  }, [streamUrls, colSizes, rowSizes, layout, stageIndex]);
+
+  // Sync URL to state whenever layout, sizes, or streams change
+  useEffect(() => {
+    if (!mounted || !hasRestored.current) return;
+    syncUrlToState();
+  }, [mounted, syncUrlToState]);
 
   // Calculate divider position as percentage
   // sizes array is guaranteed to have valid positive numbers
@@ -354,14 +293,26 @@ export default function Viewer() {
   }, []);
 
   // Handle resize start
-  const handleResizeStart = useCallback((type: "col" | "row", index: number, e: React.MouseEvent) => {
-    e.preventDefault();
+  const handleResizeStart = useCallback((type: "col" | "row", index: number, e: React.MouseEvent | React.KeyboardEvent) => {
+    if ("preventDefault" in e) e.preventDefault();
     e.stopPropagation();
     if (!gridRef.current) return;
 
     const rect = gridRef.current.getBoundingClientRect();
     const sizes = type === "col" ? effectiveColSizes : effectiveRowSizes;
-    const clientPos = type === "col" ? e.clientX : e.clientY;
+
+    const isKeyboardEvent = "key" in e;
+    let syntheticClientPos: number;
+
+    if (isKeyboardEvent) {
+      const cumulative = sizes.slice(0, index + 1).reduce((a, b) => a + b, 0);
+      const total = sizes.reduce((a, b) => a + b, 0);
+      const percent = (cumulative / total) * 100;
+      const totalPixels = type === "col" ? rect.width : rect.height;
+      syntheticClientPos = (type === "col" ? rect.left : rect.top) + (percent / 100) * totalPixels;
+    } else {
+      syntheticClientPos = type === "col" ? (e as React.MouseEvent).clientX : (e as React.MouseEvent).clientY;
+    }
 
     dragInfo.current = {
       type,
@@ -369,12 +320,11 @@ export default function Viewer() {
       startSizes: [...sizes],
       currentSizes: [...sizes],
       gridRect: rect,
-      startClientPos: clientPos,
+      startClientPos: syntheticClientPos,
     };
 
     setIsDragging(true);
 
-    // Highlight the active divider
     const refs = type === "col" ? colHandleRefs : rowHandleRefs;
     const handle = refs.current[index];
     if (handle) {
@@ -385,6 +335,31 @@ export default function Viewer() {
       }
     }
   }, [effectiveColSizes, effectiveRowSizes]);
+
+  const handleResizeKeyDown = useCallback((type: "col" | "row", index: number, e: React.KeyboardEvent) => {
+    if (!(e.key === "ArrowLeft" || e.key === "ArrowRight" || e.key === "ArrowUp" || e.key === "ArrowDown")) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    const sizes = type === "col" ? effectiveColSizes : effectiveRowSizes;
+    const total = sizes.reduce((a, b) => a + b, 0);
+    const step = 0.05 * total;
+    const delta = (e.key === "ArrowLeft" || e.key === "ArrowUp") ? -step : step;
+
+    const newSizes = [...sizes];
+    const minSize = 0.1 * total;
+    let newLeft = newSizes[index] + delta;
+    let newRight = newSizes[index + 1] - delta;
+
+    if (newLeft < minSize) { newLeft = minSize; newRight = (newSizes[index] + newSizes[index + 1]) - minSize; }
+    if (newRight < minSize) { newRight = minSize; newLeft = (newSizes[index] + newSizes[index + 1]) - minSize; }
+
+    newSizes[index] = newLeft;
+    newSizes[index + 1] = newRight;
+
+    if (type === "col") setColSizes(newSizes);
+    else setRowSizes(newSizes);
+  }, [effectiveColSizes, effectiveRowSizes, setColSizes, setRowSizes]);
 
 
   // Mouse move handler - uses RAF for smooth 60fps updates
@@ -458,32 +433,23 @@ export default function Viewer() {
     }
   }, [processMouseMove]);
 
-  // Mouse up handler - saves state once at the end
   const handleMouseUp = useCallback(() => {
-    // Cancel any pending RAF
     if (rafId.current) {
       cancelAnimationFrame(rafId.current);
       rafId.current = null;
     }
     pendingMouseEvent.current = null;
-    
+
     if (!dragInfo.current) return;
 
     const { type, index, currentSizes } = dragInfo.current;
 
-    // Use the currentSizes from dragInfo which was updated during drag
     if (type === "col") {
       setColSizes([...currentSizes]);
     } else {
       setRowSizes([...currentSizes]);
     }
 
-    // Update URL with new layout
-    const finalColSizes = type === "col" ? [...currentSizes] : effectiveColSizes;
-    const finalRowSizes = type === "row" ? [...currentSizes] : effectiveRowSizes;
-    updateShareableUrl(finalColSizes, finalRowSizes, layout, stageIndex);
-
-    // Remove highlight from divider
     const refs = type === "col" ? colHandleRefs : rowHandleRefs;
     const handle = refs.current[index];
     if (handle) {
@@ -496,7 +462,7 @@ export default function Viewer() {
 
     dragInfo.current = null;
     setIsDragging(false);
-  }, [effectiveColSizes, effectiveRowSizes, updateShareableUrl, layout, stageIndex]);
+  }, []);
 
   // Setup global mouse events
   useEffect(() => {
@@ -516,39 +482,14 @@ export default function Viewer() {
     };
   }, [isDragging, handleMouseMove, handleMouseUp]);
 
-  // Reset sizes to equal distribution based on current layout mode
   const resetSizes = () => {
     if (layout === "stage") {
-      // Stage mode: stage row gets 2fr, bottom rows get 1fr each
       const bottomRowCount = gridRows - 1;
-      const newRowSizes = bottomRowCount > 0
-        ? [2, ...Array(bottomRowCount).fill(1)]
-        : [3];
-      const newColSizes = Array(gridCols).fill(1);
-      
-      setColSizes(newColSizes);
-      setRowSizes(newRowSizes);
-      
-      if (gridRef.current) {
-        gridRef.current.style.gridTemplateColumns = newColSizes.map(s => `${s}fr`).join(" ");
-        gridRef.current.style.gridTemplateRows = newRowSizes.map(s => `${s}fr`).join(" ");
-      }
-      
-      updateShareableUrl(newColSizes, newRowSizes, layout, stageIndex);
+      setColSizes(Array(gridCols).fill(1));
+      setRowSizes(bottomRowCount > 0 ? [2, ...Array(bottomRowCount).fill(1)] : [3]);
     } else {
-      // Grid mode: all equal 1fr
-      const newColSizes = Array(gridCols).fill(1);
-      const newRowSizes = Array(gridRows).fill(1);
-      
-      setColSizes(newColSizes);
-      setRowSizes(newRowSizes);
-      
-      if (gridRef.current) {
-        gridRef.current.style.gridTemplateColumns = newColSizes.map(s => `${s}fr`).join(" ");
-        gridRef.current.style.gridTemplateRows = newRowSizes.map(s => `${s}fr`).join(" ");
-      }
-      
-      updateShareableUrl(newColSizes, newRowSizes, layout, stageIndex);
+      setColSizes(Array(gridCols).fill(1));
+      setRowSizes(Array(gridRows).fill(1));
     }
   };
 
@@ -796,7 +737,14 @@ export default function Viewer() {
                     top: isStageMode ? `${firstRowHeightPercent}%` : '0%',
                   }}
                   onMouseDown={(e) => handleResizeStart("col", i, e)}
-                  title="Drag to resize"
+                  onKeyDown={(e) => handleResizeKeyDown("col", i, e)}
+                  tabIndex={0}
+                  role="separator"
+                  aria-orientation="vertical"
+                  aria-valuenow={Math.round(leftPercent)}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  title="Drag to resize. Use arrow keys to adjust."
                 >
                   <div className="divider-line absolute inset-y-4 left-1/2 -translate-x-1/2 w-1.5 rounded-full bg-neutral-600/40 group-hover:bg-red-500/70 transition-colors" />
                 </div>
@@ -818,7 +766,14 @@ export default function Viewer() {
                   className="absolute left-0 right-0 h-6 -mt-3 cursor-row-resize pointer-events-auto group z-30 transition-none"
                   style={{ top: `${topPercent}%` }}
                   onMouseDown={(e) => handleResizeStart("row", i, e)}
-                  title="Drag to resize"
+                  onKeyDown={(e) => handleResizeKeyDown("row", i, e)}
+                  tabIndex={0}
+                  role="separator"
+                  aria-orientation="horizontal"
+                  aria-valuenow={Math.round(topPercent)}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  title="Drag to resize. Use arrow keys to adjust."
                 >
                   <div className="divider-line absolute inset-x-4 top-1/2 -translate-y-1/2 h-1.5 rounded-full bg-neutral-600/40 group-hover:bg-red-500/70 transition-colors" />
                 </div>

@@ -35,15 +35,16 @@ export default function Home() {
     setTempUrls(newUrls);
   };
 
+  const [error, setError] = useState("");
+
   const handleStartStreams = () => {
-    // Validate and extract video IDs
+    setError("");
     const validUrls = tempUrls.filter((url) => url.trim() !== "");
     if (validUrls.length === 0) {
-      alert("Please enter at least one YouTube stream URL");
+      setError("Please enter at least one YouTube stream URL");
       return;
     }
 
-    // Extract video IDs preserving order
     const videoIds: string[] = [];
     const invalidUrls: string[] = [];
     
@@ -57,15 +58,13 @@ export default function Home() {
     }
     
     if (invalidUrls.length > 0) {
-      alert(`Invalid YouTube URL(s): ${invalidUrls.join(", ")}`);
+      setError(`Invalid YouTube URL(s): ${invalidUrls.join(", ")}`);
       return;
     }
 
-    // Save to context (soft persistence)
     setStreamCount(tempCount);
     setStreamUrls(tempUrls);
 
-    // Encode stream data for sharing
     const streamData = {
       videoIds,
       colSizes: [],
@@ -75,7 +74,6 @@ export default function Home() {
     };
     const encoded = encodeStreamData(streamData);
 
-    // Navigate to viewer with encoded data
     router.push(`/viewer?data=${encoded}`);
   };
 
@@ -146,6 +144,13 @@ export default function Home() {
             • youtu.be/VIDEO_ID
           </p>
         </div>
+
+        {/* Error Message */}
+        {error && (
+          <div className="mb-4 p-3 bg-red-600/20 border border-red-600/40 rounded-lg text-red-400 text-sm">
+            {error}
+          </div>
+        )}
 
         {/* Start Button */}
         <button
