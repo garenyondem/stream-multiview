@@ -37,7 +37,7 @@ Click images to view full size in a new tab.
   <img src="https://github.com/user-attachments/assets/9d163576-cff1-4da0-a065-8e2a68ada0a7" alt="Multi-Stream Viewer Stage Mode" width="600">
 </a>
 
-*Stage layout — moce any stream to stage for larger view*
+*Stage layout — move any stream to stage for larger view*
 
 ## 🚀 Tech Stack
 
@@ -63,6 +63,9 @@ Click images to view full size in a new tab.
 - **Dark Theme** — Easy on the eyes for those long streaming sessions
 - **Responsive Design** — Full-screen layout maximizes your viewing area
 - **Live Indicators** — Pulsing red dots show which streams are active
+- **Reset Layout** — Instantly revert dividers to equal sizes
+- **Clear All** — Clear all streams and return to the setup page
+- **Keyboard Accessible** — Resize grid panels with arrow keys (Tab to focus dividers)
 
 ## 📁 Project Structure
 

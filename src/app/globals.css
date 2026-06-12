@@ -17,16 +17,16 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  background: #171717;
+  background: var(--color-neutral-900);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #404040;
+  background: var(--color-neutral-600);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #525252;
+  background: var(--color-neutral-500);
 }
 
 /* Ensure iframes fill their containers */
